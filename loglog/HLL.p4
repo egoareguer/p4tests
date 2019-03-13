@@ -151,33 +151,6 @@ control MyIngress(inout headers hdr,
 	register1.read(meta.actual_zeroes, (bit<32>)meta.index);
     }
 	
-    action zeroes() { //count the leading zeroes + 1 of meta.index (max 8) and push them in meta.index_zeroes
-		      //TODO: FIXIT! Doing a while loop with hardcoded IFs is EXTREMELY HORRIBLE, but in the absence of loops, no choice. Parsers can loop- consider moving operation there? 
-			  //Solution: lpm match?
-		      // !!! Bit indexes must be compile time constants. !!!
-
-	meta.stop = true ; meta.index_zeroes = 1 ;
-
-	if (  (bool)meta.remnant[0:0]  ) { meta.stop = false ; } else { meta.index_zeroes = meta.index_zeroes + 1; } 
-	if (  meta.stop ) {if((bool)meta.remnant[1:1] ) { meta.stop = false ; } else { meta.index_zeroes = meta.index_zeroes + 1; } } 
-			   
-	if (  meta.stop ) {if((bool)meta.remnant[2:2] ) { meta.stop = false ; } else { meta.index_zeroes = meta.index_zeroes + 1; } }
-	if (  meta.stop ) {if((bool)meta.remnant[3:3] ) { meta.stop = false ; } else { meta.index_zeroes = meta.index_zeroes + 1; } }	
-	if (  meta.stop ) {if((bool)meta.remnant[4:4] ) { meta.stop = false ; } else { meta.index_zeroes = meta.index_zeroes + 1; } }
-	if (  meta.stop ) {if((bool)meta.remnant[5:5] ) { meta.stop = false ; } else { meta.index_zeroes = meta.index_zeroes + 1; } }
-	if (  meta.stop ) {if((bool)meta.remnant[6:6] ) { meta.stop = false ; } else { meta.index_zeroes = meta.index_zeroes + 1; } }
-	if (  meta.stop ) {if((bool)meta.remnant[7:7] ) { meta.stop = false ; } else { meta.index_zeroes = meta.index_zeroes + 1; } }
-	// ...And on, and on, and on, 56 times. A simple script would write this just fine given suitable tags
-/*	if (  meta.stop ) {if((bool)meta.remnant[8:8] ) { meta.stop = false ; } else { meta.index_zeroes = meta.index_zeroes + 1; } }
-	if (  meta.stop ) {if((bool)meta.remnant[9:9] ) { meta.stop = false ; } else { meta.index_zeroes = meta.index_zeroes + 1; } }
-	if (  meta.stop ) {if((bool)meta.remnant[10:10] ) { meta.stop = false ; } else { meta.index_zeroes = meta.index_zeroes + 1; } }
-	if (  meta.stop ) {if((bool)meta.remnant[11:11] ) { meta.stop = false ; } else { meta.index_zeroes = meta.index_zeroes + 1; } } */
-	if (  meta.stop ) {if((bool)meta.remnant[12:12] ) { meta.stop = false ; } else { meta.index_zeroes = meta.index_zeroes + 1; } }
-	if (  meta.stop ) {if((bool)meta.remnant[13:13] ) { meta.stop = false ; } else { meta.index_zeroes = meta.index_zeroes + 1; } } 
-
-	//Problem: after a certain amount of if statements, compilation is far longer than it should be. Weird.
-	//Second problem: far too few counts for 10k packets. Why?
-    }
 	action save_zeroes(zeroes_t value ) {
 		meta.index_zeroes = value ;
 	}
@@ -286,15 +259,11 @@ control MyIngress(inout headers hdr,
         }
 	if (hdr.tcp.isValid()) {
 	    initiate();
-	    zeroes();   
+	    zeroes_lpm.apply();
 	    if (meta.index_zeroes > meta.actual_zeroes ) {
-		push_zeroes();
-      	    }
+		    push_zeroes();
+	    }
 	}
-	zeroes_lpm.apply();
-	if (meta.index_zeroes > meta.actual_zeroes ) {
-		push_zeroes();
-      	}
     }
 }
 
