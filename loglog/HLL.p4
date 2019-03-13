@@ -21,7 +21,8 @@ const bit<4> REGISTER_SIZE = 0x6; //6 bits is enough for up to 64, we won't have
 typedef bit<9>  egressSpec_t;
 typedef bit<48> macAddr_t;
 typedef bit<32> ip4Addr_t;
-typedef bit<64> hash_t;
+typedef bit<64> big_hash_t;
+typedef bit<32> hash_t;
 typedef bit<56> remnant_t;
 typedef bit<8> index_t;
 typedef bit<6> zeroes_t;
@@ -63,7 +64,9 @@ header tcp_t {
 }
 
 struct metadata {
-    hash_t hash;
+    hash_t hash1;
+    hash_t hash2;
+    big_hash_t big_hash;
     remnant_t remnant;
     index_t index; 
     index_t bit_index ;
@@ -144,44 +147,64 @@ control MyIngress(inout headers hdr,
 
     action initiate() {
 	meta.key = hdr.ipv4.srcAddr++hdr.tcp.dstPort ;
-	hash(meta.hash,
+	hash(meta.hash1,
 		HashAlgorithm.crc32_custom,
-		64w0,
+		32w0,
 		{ hdr.ipv4.srcAddr, hdr.tcp.dstPort },
-		64w0b1111111111111111111111111111111111111111111111111111111111111111 
+		32w0b11111111111111111111111111111111 
 	    );
-	meta.index = meta.hash[7:0];
-	meta.remnant = meta.hash[63:8]; 
+	hash(meta.hash2,
+		HashAlgorithm.crc32_custom,
+		32w0,
+		{ hdr.ipv4.srcAddr, 8w0b00110000, hdr.tcp.dstPort },
+		32w0b11111111111111111111111111111111
+	    ); 
+	meta.index = meta.hash1[7:0];
+	meta.remnant = meta.hash2[31:0]++meta.hash1[31:8]; 
 	register1.read(meta.actual_zeroes, (bit<32>)meta.index);
     }
 	
-	action save_zeroes(zeroes_t value ) {
-		meta.index_zeroes = value ;
+    action save_zeroes(zeroes_t value ) {
+	    meta.index_zeroes = value ;
+    }
+
+    table debug_table { // The only purpose of this table is to make it spit its key in the logs
+    key = { meta.key	: exact;
+	    meta.hash1	: exact;
+	    meta.hash2	: exact;
+	    meta.index	: exact;
+	    meta.remnant: exact;
+	  }
+    actions = {
+	NoAction;
+    }
+    default_action = NoAction;
+    }
+
+    table zeroes_lpm { //do a lpm match on remnant using pre-inserted table entries to determine what to write
+		       //The counter helps determine whether we're close to the start/end
+	key = { meta.remnant: lpm; }
+	actions = {
+		NoAction;
+		drop;
+		save_zeroes;
 	}
-	table zeroes_lpm { //do a lpm match on remnant using pre-inserted table entries to determine what to write
-			   //The counter helps determine whether we're close to the start/end
-		key = { meta.remnant: lpm; }
-		actions = {
-			NoAction;
-			drop;
-			save_zeroes;
+	size = 57;
+	default_action = NoAction;
+		/*
+		const entries = {
+		(56w0b10000000000000000000000000000000000000000000000000000000/1) : save_zeroes(1);
+		(56w0b01000000000000000000000000000000000000000000000000000000/2) : save_zeroes(2);
+		(56w0b00100000000000000000000000000000000000000000000000000000/3) : save_zeroes(3);
+		(56w0b00010000000000000000000000000000000000000000000000000000/4) : save_zeroes(4);
+		(56w0b00001000000000000000000000000000000000000000000000000000/5) : save_zeroes(5);
+		(56w0b00000100000000000000000000000000000000000000000000000000/6) : save_zeroes(6);
+		(56w0b00000010000000000000000000000000000000000000000000000000/7) : save_zeroes(7);
+		(56w0b00000001000000000000000000000000000000000000000000000000/8) : save_zeroes(8);
+		(56w0b00000000100000000000000000000000000000000000000000000000/9) : save_zeroes(9);
+		(56w0b00000000010000000000000000000000000000000000000000000000/10) : save_zeroes(10);
 		}
-		size = 57;
-		default_action = NoAction;
-			/*
-			const entries = {
-			(56w0b10000000000000000000000000000000000000000000000000000000/1) : save_zeroes(1);
-			(56w0b01000000000000000000000000000000000000000000000000000000/2) : save_zeroes(2);
-			(56w0b00100000000000000000000000000000000000000000000000000000/3) : save_zeroes(3);
-			(56w0b00010000000000000000000000000000000000000000000000000000/4) : save_zeroes(4);
-			(56w0b00001000000000000000000000000000000000000000000000000000/5) : save_zeroes(5);
-			(56w0b00000100000000000000000000000000000000000000000000000000/6) : save_zeroes(6);
-			(56w0b00000010000000000000000000000000000000000000000000000000/7) : save_zeroes(7);
-			(56w0b00000001000000000000000000000000000000000000000000000000/8) : save_zeroes(8);
-			(56w0b00000000100000000000000000000000000000000000000000000000/9) : save_zeroes(9);
-			(56w0b00000000010000000000000000000000000000000000000000000000/10) : save_zeroes(10);
-			}
-			*/
+		*/
     }
     
     action push_zeroes() {
@@ -214,6 +237,7 @@ control MyIngress(inout headers hdr,
         }
 	if (hdr.tcp.isValid()) {
 	    initiate();
+	    debug_table.apply();
 	    zeroes_lpm.apply();
 	    if (meta.index_zeroes > meta.actual_zeroes ) {
 		    push_zeroes();
