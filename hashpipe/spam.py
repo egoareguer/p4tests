@@ -51,6 +51,11 @@ def main():
     random.shuffle(keys)
 
     print(len(keys))
+    print(class1)
+    print(class2)
+    print(class3)
+    print(class4)
+    print(class5)
     for i in range(len(keys)):
 #print(keys[i])
 	pkt = Ether(src=get_if_hwaddr(iface),dst='ff:ff:ff:ff:ff:ff')
