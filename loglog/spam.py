@@ -51,3 +51,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+# pkt=Ether(src="aa:aa:aa:aa:aa:aa",dst="ff:ff:ff:ff:ff:ff")/IP(dst='10.0.2.2',src='10.0.1.1')/TCP(dport=1234,sport=55555)/"tototo"
