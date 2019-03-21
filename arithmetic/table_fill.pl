@@ -3,49 +3,70 @@ use strict;
 use warnings;
 #Because table_fill.sh was taking too long and perl has a builtin x for string multiplication
 
-# Writes the log table entries. For N bits integers, about ~N*2^m entries of form
-# O^n++1(0|1)^min(m-1,N-n-1)++*^max(0,N-n-m) for 0 <= n < N
-# l bit long log values will fit an exp table of size 2^l 
+# Writes the approximate log table entries. 
+# Parameters: N, m, l. 
+	# > N for N bit integers
+	# > m is the width of our moving bits window 
+	# > l is the width of the result
+# Keep in mind, we're going to add the result, so the leftmost bit of the result should be 0
 
-open(my $out, ">", "log_table_perl.txt") or die "Can't open output file: $!";
-my $line="";
+# For N bits integers, this writes about ~N*2^m entries. 
+# Prefix	: O^n++1(0|1)^min(m-1,N-n-1)++*^max(0,N-n-m) ; with 0 <= n < N
+# Mask		: 1^(n+min+1) ++ 0^max
 
+# Where do we write?
+open(my $out, ">", "log_table_raw") or die "Can't open output file: $!";
+
+# Table variables: N, m, l 
 my $m=5;
-my $N=64;
-my $l=32;
-my $n=0;
-my $min=0;
-my $max=0;
-my $range=0; my $remaining=""; my $var=0;
-my $i=0; my $k=0; my $j=0; 
+my $N=32;
+my $l=16;
 
-for ($n =0; $n < $N; $n++) {
-	if (($m-1) < (64-$n-1)) {
+for (my $n =0; $n < $N; $n++) {
+	my $min=0; my $max=0;
+	if (($m) < ($N-$n)) {
 		$min=$m-1;
 	} else {
-		$min=64-$n-1;
+		$min=$N-$n-1;
 	}
-	if ($N -$n -$n) {
+	if (($N-$n-$m)<0) {
 		$max=0;
 	} else {
 		$max=$N-$n-$m;
 	}
-	$range=2**$min;
-	for ($i=0; $i<$range; $i++) {
-		$line="0"x$n." 1";
-		print $out "(64w0b".$line;
-		# Perl's (s)printf has a template to write the binary form: %b
-		# Better yet, we can tell him how wide it should be.
-		printf $out "%0$min"."b"." ", $i unless $n == 63;
-		#Printed chars:6+n+1+min
-		print $out "1"x(70-(6+1+$n+$min))." &&& 64w0b";
-		print $out "1"x($n+5) unless ($n+5 >63);
-		print $out "1"x(64) if ($n+5>63);
-		print $out "0"x(59-$n).")";
-		print $out ": log(";
-		printf $out "%$l"."b", log(2**($min+1)+$min*2**(64-$n-$min-1));
-		print $out ");\n"; 
-		$var=(2**($min+1)+$min*2**(64-$n-$min-1)) ;print $out "arg=$var \n"; 
+#	Formerly, for clarity there was "my $range = 2**$min" here, which was used as $i's initial value
+#	Its purpose is to describe the range of (0|1)^min values
+#	For clarity, in Perl . is the string concatenation operator and x is the string multiplication operator
+	for (my $i=(2**$min-1); $i>=0; $i--) {
+		print $out "($N"."w0b"."0"x$n."1";					# ($Nw0b++0^n++1
+		printf $out "%0$min"."b", $i unless $n == $N-1;		# binary of $i, which describes (0|1)^min
+		print $out "1"x$max." &&& 64w0b";					# fill in the max remaining "masked" bits
+
+	# *** SEPARATION *** (prefix -> mask)
+
+		print $out "1"x($n+$min+1);							# Meaningful bits
+		print $out "0"x$max;								# "Don't care" bits
+
+	# *** SEPARATION *** (mask -> action call)
+		# $var is the matched number, logval[shifted] its image by log[possibly shifted to avoid logs of small values, which vary too much for our small precision window]
+		
+		# TODO/Problem: log gives us decimal precision width just fine... the %0b binary conversion doesn't.
+		# TODO: Ideally, we'd take the log of the first entry, and take as many bits as it's wide + 1 to use prior the decimal, and the rest after the decimal
+	
+		print $out ": log(";								
+		my $var = ( ((2**$min+$i)*2+1)*2**($max-1)) ;
+		my $logval = sprintf("%.8f", log($var));
+		my$logvalshifted = 100*$logval;
+		printf $out "%0*b", $l, $logval;
+		print $out ");";
+		
+	# Testing prints
+		#my $binvar = sprintf "%0b", $var;
+		#print $out " min $min max $max n $n ";
+		#print $out " \#$var, $logval $logvalshifted";
+		#print $out "\n $binvar ";
+
+	# line break between entries
+		print $out "\n";
 	}
 }
-
