@@ -200,7 +200,7 @@ control MyIngress(inout headers hdr,
 	size = 464;
 	default_action = NoAction();
 		const entries = {
-			 #include "./tables/log_table_raw"
+			 #include "./tables/log_table_32bits_6precision.txt"
 		}
 	}
 
@@ -215,7 +215,7 @@ control MyIngress(inout headers hdr,
 		size = 464;
 		default_action = NoAction();
 		const entries = {
-			#include "./tables/log_table_raw"			
+			#include "./tables/log_table_32bits_6precision.txt"			
 		}
 	}
 	table exp_val { 
@@ -229,7 +229,7 @@ control MyIngress(inout headers hdr,
 		size = 1024;
 		default_action = NoAction();
 		const entries = {
-			#include "exp_table_raw"			
+			#include "./tables/exp_table_32bits_10precision.txt"			
 		}
 	}
 	action operation_mult() {
@@ -239,19 +239,6 @@ control MyIngress(inout headers hdr,
 	action operation_div() {
 		meta.divFlag   = true;
 		meta.divFlag2  = true;
-	}
-	action const_mult() { 
-	/*	Multiplying by an int is the same as multiplying by its component powers of two with bit shifts & addition
-		We can't really assume anything about what the p4 target will actually support
-		"Division can be implemented by rewriting multiplication with the inverse-" (Evaluating Flexbile Packet Processing [...]) // But that implies floating point arithmetic
-	*/	
-	// 
-	}
-	action arbitrary_mult() { 
-	/*	Here, can't use base 2 decomposition, so we have to approximate the operation.			
-		The magic word is: 
-		***** A*B = exp(32w0blog(A)+log(B)) *****
-	*/
 	}
 	table calculate {
         key = {
