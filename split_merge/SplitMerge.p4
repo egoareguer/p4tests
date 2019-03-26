@@ -3,7 +3,7 @@
 #include <v1model.p4>
 
 const bit<16> TYPE_IPV4 = 0x800;
-#define REGISTERS_SIZE 65536 //Starting with a naive "Monitor EVERYTHING" approach
+#define REGISTERS_SIZE 128 //Starting with a naive "Monitor EVERYTHING" approach
 			     // 12Mb / 64Kb ~ 200 bits, let's say 32bits per bitmap  
 			     // -> 160bit entries in the register
 			  
@@ -82,7 +82,7 @@ struct headers {
     tcp_t	 tcp;
 }
 
-register<bit<160>>(REGISTERS_SIZE) qt_reg;
+register<bit<160>>(REGISTERS_SIZE) t_reg; // Each port has a 160 bits slot which serves to write the features' bitmaps
 
 /*************************************************************************
 *********************** P A R S E R  ***********************************
@@ -164,7 +164,7 @@ control MyIngress(inout headers hdr,
     }
     // ***** Initialization *****
     action calc_hashes() {
-		t_reg.read(meta.val, hdr.tcp.dstPort); 
+		t_reg.read(meta.val, (bit<32>)hdr.tcp.dstPort); 
 		hash(meta.h1, HashAlgorithm.crc32,
 			16w0,
 			{hdr.ipv4.dstAddr},
@@ -186,49 +186,97 @@ control MyIngress(inout headers hdr,
 			16w31
 		);
     }
-
-	action set_dstIP() {
-		bit<32> tmp;
+	
+	// Shifts is limited to 8 bits on v1model, so we need to use something else, for example a table
+	// Sadly, we still can't invoke tables within actions
+	/*
+	action set_dstIP() { 
+		bit<160> tmp;
 		tmp = 1 ;
-		tmp << meta.h1 ;
+		tmp = (tmp << meta.h1) / 2;
 		meta.val = meta.val | tmp ; 
 		t_reg.write((bit<32>)hdr.tcp.dstPort, meta.val);
 	}
 	action set_srcIP() {
-		bit<32> tmp;
+		bit<160> tmp;
 		tmp = 1 ;
-		tmp << meta.h2 ;
+		tmp = (tmp << meta.h2 + 31) ;
 		meta.val = meta.val | tmp ; 
 		t_reg.write((bit<32>)hdr.tcp.dstPort, meta.val);
 	}
 	action set_srcPort() {
-		bit<32> tmp;
+		bit<160> tmp;
 		tmp = 1 ;
-		tmp << meta.h3 ;
+		tmp = (tmp << meta.h3 + 63) ;
 		meta.val = meta.val | tmp ; 
 		t_reg.write((bit<32>)hdr.tcp.dstPort, meta.val);
 	}
 	action set_packetLength() {
-		bit<32> tmp;
+		bit<160> tmp;
 		tmp = 1 ;
-		tmp << meta.h4 ;
+		tmp = (tmp << meta.h4 + 95) ;
 		meta.val = meta.val | tmp ; 
 		t_reg.write((bit<32>)hdr.tcp.dstPort, meta.val);
 	}
+	*/
+	action write_tmp( bit<160> var) {
+		meta.val = meta.val | var ;
+	}
+	table dstIP_table {
+		key = { meta.h1: exact; }
+		actions = { drop; NoAction; write_tmp; }
+		const entries = {
+			#include "./tables/table0.txt"  
+		}
+		default_action = NoAction();
+	}
+	table srcIP_table {
+		key = { meta.h2: exact; }
+		actions = { drop; NoAction; write_tmp; }
+		const entries = { 
+			#include "./tables/table1.txt"  
+		}
+		default_action = NoAction();
+	}
+	table srcPort_table {
+		key = { meta.h3: exact; }
+		actions = { drop; NoAction; write_tmp; }
+		const entries = { 
+			#include "./tables/table2.txt"  
+		}
+		default_action = NoAction();
+	}
+	table pktLen_table {
+		key = { meta.h2: exact; }
+		actions = { drop; NoAction; write_tmp; }
+		const entries = { 
+			#include "./tables/table3.txt"  
+		}
+		default_action = NoAction();
+	}
+	
 	//TODO: Missing: Counter SYN flags
 	
 	//The control proper is pretty simple since we're just making records on top of forwarding packets
     apply {
         if (hdr.ipv4.isValid() && hdr.tcp.isValid() ) { //We need both for the keys
             ipv4_lpm.apply(); //Just forward normally
-        }
-
+		}
 	//Monitoring proper
 	calc_hashes();
+	
+	dstIP_table.apply();
+	srcIP_table.apply();
+	srcPort_table.apply();
+	pktLen_table.apply();
+	t_reg.write((bit<32>)hdr.tcp.dstPort, meta.val);
+	/*
 	set_dstIP();
 	set_srcIP();
 	set_srcPort();
 	set_packetLength();
+	*/
+	}
 }
 
 /*************************************************************************
