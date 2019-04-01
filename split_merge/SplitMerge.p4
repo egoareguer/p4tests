@@ -30,7 +30,7 @@ typedef bit<48> macAddr_t;
 typedef bit<32> ip4Addr_t;
 typedef bit<48> key_t; //The keys used is dsrAddr++srcPort, so 48 bits
 typedef bit<16>  hash_t;
-typedef bit<160> val_t;
+typedef bit<32> val_t;
 
 
 header ethernet_t {
@@ -69,7 +69,10 @@ header tcp_t {
 }
 
 struct customMetadata_t {
-	val_t val;
+	val_t val1;
+	val_t val2;
+	val_t val3;
+	val_t val4;
 	hash_t h1;
 	hash_t h2;	
 	hash_t h3;
@@ -82,7 +85,12 @@ struct headers {
     tcp_t	 tcp;
 }
 
-register<bit<160>>(REGISTERS_SIZE) t_reg; // Each port has a 160 bits slot which serves to write the features' bitmaps
+// register<bit<160>>(REGISTERS_SIZE) t_reg; // Each port has a 160 bits slot which serves to write the features' bitmaps
+// In light of the reading problems past 2^63, we separate them for now
+register<bit<32>>(REGISTERS_SIZE) IPsrc_reg;
+register<bit<32>>(REGISTERS_SIZE) IPdst_reg;
+register<bit<32>>(REGISTERS_SIZE) Portsrc_reg;
+register<bit<32>>(REGISTERS_SIZE) pktLength_reg;
 
 /*************************************************************************
 *********************** P A R S E R  ***********************************
@@ -164,7 +172,10 @@ control MyIngress(inout headers hdr,
     }
     // ***** Initialization *****
     action calc_hashes() {
-		t_reg.read(meta.val, (bit<32>)hdr.tcp.dstPort);  // Crash here
+		IPsrc_reg.read(meta.val1, (bit<32>)hdr.tcp.dstPort);  // Silent crash here if dstPort > REGISTERS_SIZE
+		IPdst_reg.read(meta.val2, (bit<32>)hdr.tcp.dstPort);
+		Portsrc_reg.read(meta.val3, (bit<32>)hdr.tcp.dstPort);
+		pktLength_reg.read(meta.val4, (bit<32>)hdr.tcp.dstPort);
 		hash(meta.h1, HashAlgorithm.crc32,
 			16w0,
 			{hdr.ipv4.dstAddr},
@@ -189,73 +200,52 @@ control MyIngress(inout headers hdr,
 	
 	// Shifts is limited to 8 bits on v1model, so we need to use something else, for example a table
 	// Sadly, we still can't invoke tables within actions
-	/*
-	action set_dstIP() { 
-		bit<160> tmp;
-		tmp = 1 ;
-		tmp = (tmp << meta.h1) / 2;
-		meta.val = meta.val | tmp ; 
-		t_reg.write((bit<32>)hdr.tcp.dstPort, meta.val);
+	action write_tmp1( bit<32> var1) {
+		meta.val1 = meta.val1 | var1 ;
 	}
-	action set_srcIP() {
-		bit<160> tmp;
-		tmp = 1 ;
-		tmp = (tmp << meta.h2 + 31) ;
-		meta.val = meta.val | tmp ; 
-		t_reg.write((bit<32>)hdr.tcp.dstPort, meta.val);
+	action write_tmp2( bit<32> var2) {
+		meta.val2 = meta.val2 | var2 ;
 	}
-	action set_srcPort() {
-		bit<160> tmp;
-		tmp = 1 ;
-		tmp = (tmp << meta.h3 + 63) ;
-		meta.val = meta.val | tmp ; 
-		t_reg.write((bit<32>)hdr.tcp.dstPort, meta.val);
+	action write_tmp3( bit<32> var3) {
+		meta.val3 = meta.val3 | var3 ;
 	}
-	action set_packetLength() {
-		bit<160> tmp;
-		tmp = 1 ;
-		tmp = (tmp << meta.h4 + 95) ;
-		meta.val = meta.val | tmp ; 
-		t_reg.write((bit<32>)hdr.tcp.dstPort, meta.val);
-	}
-	*/
-	action write_tmp( bit<160> var) {
-		meta.val = meta.val | var ;
+	action write_tmp4( bit<32> var4) {
+		meta.val4 = meta.val4 | var4 ;
 	}
 	table dstIP_table {
 		key = { meta.h1: exact; }
-		actions = { drop; NoAction; write_tmp; }
+		actions = { drop; NoAction; write_tmp1; }
 		const entries = {
-			#include "./tables/table0.txt"  
+			#include "./tables/table1.txt"  
 		}
 		default_action = NoAction();
 	}
 	table srcIP_table {
 		key = { meta.h2: exact; }
-		actions = { drop; NoAction; write_tmp; }
-		const entries = { 
-			#include "./tables/table1.txt"  
-		}
-		default_action = NoAction();
-	}
-	table srcPort_table {
-		key = { meta.h3: exact; }
-		actions = { drop; NoAction; write_tmp; }
+		actions = { drop; NoAction; write_tmp2; }
 		const entries = { 
 			#include "./tables/table2.txt"  
 		}
 		default_action = NoAction();
 	}
-	table pktLen_table {
-		key = { meta.h2: exact; }
-		actions = { drop; NoAction; write_tmp; }
+	table srcPort_table {
+		key = { meta.h3: exact; }
+		actions = { drop; NoAction; write_tmp3; }
 		const entries = { 
 			#include "./tables/table3.txt"  
 		}
 		default_action = NoAction();
 	}
+	table pktLen_table {
+		key = { meta.h4: exact; }
+		actions = { drop; NoAction; write_tmp4; }
+		const entries = { 
+			#include "./tables/table4.txt"  
+		}
+		default_action = NoAction();
+	}
 	
-	//TODO: Missing: Counter SYN flags
+	//TODO: Missing: Count SYN flags
 	
 	//The control proper is pretty simple since we're just making records on top of forwarding packets
     apply {
@@ -269,13 +259,10 @@ control MyIngress(inout headers hdr,
 	srcIP_table.apply();
 	srcPort_table.apply();
 	pktLen_table.apply();
-	t_reg.write((bit<32>)hdr.tcp.dstPort, meta.val);
-	/*
-	set_dstIP();
-	set_srcIP();
-	set_srcPort();
-	set_packetLength();
-	*/
+	IPsrc_reg.write((bit<32>)hdr.tcp.dstPort, meta.val1);
+	IPdst_reg.write((bit<32>)hdr.tcp.dstPort, meta.val2);
+	Portsrc_reg.write((bit<32>)hdr.tcp.dstPort, meta.val3);
+	pktLength_reg.write((bit<32>)hdr.tcp.dstPort, meta.val4);
 	}
 }
 
