@@ -3,7 +3,7 @@
 #include <v1model.p4>
 
 const bit<16> TYPE_IPV4 = 0x800;
-#define REGISTERS_SIZE 128 //Starting with a naive "Monitor EVERYTHING" approach
+#define REGISTERS_SIZE 256 //Starting with a naive "Monitor EVERYTHING" approach
 			     // 12Mb / 64Kb ~ 200 bits, let's say 32bits per bitmap  
 			     // -> 160bit entries in the register
 			  
@@ -164,7 +164,7 @@ control MyIngress(inout headers hdr,
     }
     // ***** Initialization *****
     action calc_hashes() {
-		t_reg.read(meta.val, (bit<32>)hdr.tcp.dstPort); 
+		t_reg.read(meta.val, (bit<32>)hdr.tcp.dstPort);  // Crash here
 		hash(meta.h1, HashAlgorithm.crc32,
 			16w0,
 			{hdr.ipv4.dstAddr},
