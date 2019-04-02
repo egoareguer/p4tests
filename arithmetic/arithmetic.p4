@@ -281,8 +281,8 @@ control MyIngress(inout headers hdr,
 										// Note that (2) is not necessarily a v1model limitation - it could extend to hardward implementations !
 										// >3) Having two possible -even mutually distinct- calls of the same table also appears to be impossible! 
 
-		// A*B ~ exp( log(a)+log(b) )
-			if (meta.approxFlag) {
+			if (meta.approxFlag) { // Will only have been set by calculate if the operator was '*' or '/' 
+								   // This block does the approximation
 				meta.to_log=hdr.p4calc.OperandA;
 				log_val.apply();
 				tmp = meta.res;
