@@ -26,19 +26,17 @@ def get_if():
 def main():
     addr = socket.gethostbyname(sys.argv[1])
     iface = get_if()
-# Parameters should be a repartition 
-# The only key is dstPort in this use case
-# In the meantime, we pick N keys, set them for 200-2 pkts each, send them randomly
 
     keys=[]
     N=128
     for i in range (N):
 		for j in range(i): # In other words, i random packets to port i
-		sport=str(random.randint(1024, 64444))
-		ip1=str(random.randint(1,254))+'.'+str(random.randint(1,254))+'.'+str(random.randint(1,254))+'.'+str(random.randint(1,254))
-		ip2=str(random.randint(1,254))+'.'+str(random.randint(1,254))+'.'+str(random.randint(1,254))+'.'+str(random.randint(1,254))
-		lenPadding=random.randint(1,100)*"p"
-		keys.append((sport,dport,ip1,ip2,lenPadding))
+						   # Sport, Rrc and Dst IPs are completely random	
+			sport=str(random.randint(1024, 64444))
+			ip1=str(random.randint(1,254))+'.'+str(random.randint(1,254))+'.'+str(random.randint(1,254))+'.'+str(random.randint(1,254))
+			ip2=str(random.randint(1,254))+'.'+str(random.randint(1,254))+'.'+str(random.randint(1,254))+'.'+str(random.randint(1,254))
+			lenPadding=random.randint(1,100)*"p"
+			keys.append((sport,i,ip1,ip2,lenPadding))
 
     print(len(keys))
     print(keys)
