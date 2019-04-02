@@ -80,9 +80,8 @@ struct metadata {
 	number_t log2;
 	number_t exp;
 	bool	 multFlag;
-	bool	 multFlag2;
 	bool	 divFlag;
-	bool	 divFlag2;
+	bool	 approxFlag;
 }
 
 struct headers {
@@ -187,9 +186,7 @@ control MyIngress(inout headers hdr,
 	action write_exp(bit<32> val) {
 		meta.res=val;
 	}
-	table log_val2 { //It seems like calling the same table twice in a row is not possible with v1model. The compiler fails the attempt with:
-		//"Program cannot be implemented on this target since there it containsa path from table MyIngress.log_val back to itself"
-		//Therefore, I am duplicating the table. Effectively doubling the memory footprint.
+	table log_val { //It seems like calling the same table twice in a row is not possible with v1model. The compiler fails the attempt with:
 	key = { meta.to_log : lpm;
 	}
 	actions = { 
@@ -197,14 +194,13 @@ control MyIngress(inout headers hdr,
 		drop;
 		write_log;
 	}
-	size = 464;
 	default_action = NoAction();
 		const entries = {
 			 #include "./tables/log_table_32bits_6precision.txt"
 		}
 	}
 
-	table log_val { 
+	table log_val2 { 
 		key = { meta.to_log : lpm;
 		}
 		actions = { 
@@ -212,7 +208,6 @@ control MyIngress(inout headers hdr,
 			drop;
 			write_log;
 		}
-		size = 464;
 		default_action = NoAction();
 		const entries = {
 			#include "./tables/log_table_32bits_6precision.txt"			
@@ -226,19 +221,18 @@ control MyIngress(inout headers hdr,
 			drop;
 			write_exp;
 		}
-		size = 1024;
 		default_action = NoAction();
 		const entries = {
 			#include "./tables/exp_table_32bits_10precision.txt"			
 		}
 	}
 	action operation_mult() {
-		meta.multFlag  = true;
-		meta.multFlag2 = true;
+		meta.multFlag   = true;
+		meta.approxFlag = true;
 	}
 	action operation_div() {
-		meta.divFlag   = true;
-		meta.divFlag2  = true;
+		meta.divFlag    = true;
+		meta.approxFlag = true;
 	}
 	table calculate {
         key = {
@@ -284,30 +278,25 @@ control MyIngress(inout headers hdr,
 			bit<32> tmp;			// The reason why we have to use two log tables and put them here is 
 										// >1) We can't invoke tables from actions
 										// >2) On v1model, calling the same tables more than once appear to throw an error
-		/*	if (meta.multFlag) {	// set to return A*B = exp(log(AB)) = exp(log(A)+log(B))
+										// Note that (2) is not necessarily a v1model limitation - it could extend to hardward implementations !
+										// >3) Having two possible -even mutually distinct- calls of the same table also appears to be impossible! 
+
+		// A*B ~ exp( log(a)+log(b) )
+			if (meta.approxFlag) {
 				meta.to_log=hdr.p4calc.OperandA;
 				log_val.apply();
 				tmp = meta.res;
 				meta.to_log=hdr.p4calc.OperandB;
 				log_val2.apply();
-				meta.to_exp=tmp + meta.res;
-				exp_val.apply();
-				send_back(meta.res);
-			} else 
-	*/		if (meta.divFlag) {		// set to return A/B. A/B = exp(log(A/B)) = exp(log(A)-log(B))
-	/*	New problem: having two possible calls of the same table also appear to be impossible in v1model. It fails with:
-		"Program is not supported by this target, because table MyIngress.exp_val has multiple successors"	
-	*/	
-				meta.to_log=hdr.p4calc.OperandA;
-				 log_val.apply();
-				tmp = meta.res;
-				meta.to_log=hdr.p4calc.OperandB;
-				log_val2.apply();
-				meta.to_exp=tmp - meta.res;
+				if (meta.multFlag) {
+					meta.to_exp=tmp + meta.res;
+				} else if ( meta.divFlag ) {
+					meta.to_exp=tmp - meta.res;
+				}
 				exp_val.apply();
 				send_back(meta.res);
 			}
-	}
+		}
         if (hdr.ipv4.isValid()) {
             ipv4_lpm.apply();
         }

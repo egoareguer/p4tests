@@ -4,27 +4,38 @@ use warnings;
 
 #TODO(s): 
 # The rounding is /terrible/ Fix it!
-# The decimal precision adjustment should be easy with just l,m,w to set
+# The decimal precision adjustment should be easy to adjust with just l,m,w 
 # To best deal with the rounding, we /could/ try shifting left as much as the current number will allow to go where the gradient is lesser
 
-# Preface: This script writes the approximate log & exp table entries in files
+########## Preface: ##########
+
+# This script writes the approximate log & exp table entries in files in the tables/folder
 # Each file pair uses parameters: N, m, l. 
 	# > N for N bit integers
 	# > m is the width of our moving bits window 
 	# > l is the width of the result
-# Keep in mind, we're going to add the result, so the leftmost bit of the result should be 0 
+# (TODO) Keep in mind, we're going to add the results together, so the leftmost bit of the result should be 0 
 
 # For N bits integers, this writes about ~N*2^m log entries & 2^l entries
+
+# In the case of the log table, it's a lpm match with that maps entries of the form
 # Prefix	: O^n++1(0|1)^min(m-1,N-n-1)++*^max(0,N-n-m) ; with 0 <= n < N
 # Mask		: 1^(n+min+1) ++ 0^max
-# Refer to page 6 of "Evaluating the Power of Flexible Packet Processing for Network Resource Allocation" for more details on the form
+# to their log values (of bit width l)
+# The reason why is that, since log varies logarithmically, we can get away with only checking the most significant bit and the trailing m bits behind it without messing the approximation noticeably (for our precision, anyway)
 
-#To take advantage of bit shifts, we write a FALSE exp table that's really a 2^(val) table
+# On the other hand, since exp varies wildly for slight change of antecedent, we need to do an exact match for every possible entry, hence why l needs to be small (it already explodes the bit width quickly)
 
-# Table variables: N, m, l 
+# Also we kinda cheat since we actually use 2^(log2(A)*/log2(B)) for convenience to take advantage of bit shifts
+
+# See also: page 6 of "Evaluating the Power of Flexible Packet Processing for Network Resource Allocation" 
+# "What every computer scientist should know about floating point arithmetic"
+
+########## Table variables: N, m, l ##########
+
 my @m=(5,6);
 my @N=(16,32,64);
-my $l=11;
+my $l=10;
 
 foreach my $N (@N) {
 	foreach my $m (@m) {
@@ -36,7 +47,7 @@ foreach my $N (@N) {
 		# We're going to vary N, l, and m, and write a table each time. 
 		open(my $log_out, ">", "./tables/log_table_$N"."bits_$m"."precision.txt") or die "Can't open output file: $!";
 		open(my $exp_out, ">", "./tables/exp_table_$N"."bits_$l"."precision.txt") or die "Can't open output file: $!";
-		# For convenience, we also write the variables at the start of the file, commented for P4
+		# For convenience, we also write the variables at the start of the file, commented for .p4
 		printf $log_out " // N=$N; m=$m; l=$l; w=$w ; 2**w=%.2f \n", 2**$w;
 		print $exp_out " // N=$N; m=$m; l=$l; w=$w \n";
 
@@ -95,7 +106,7 @@ foreach my $N (@N) {
 	#			printf $log_out "%0*b", $l, $logvalshifted*2**$w/$log2;	
 				print  $log_out ");";
 
-			# Testing prints
+			# Testing/debug prints
 				#my $binvar = sprintf "%0b", $var;
 				#print $log_out " min $min max $max n $n ";
 #				print $log_out "\n var=$var; logval=$logval";
