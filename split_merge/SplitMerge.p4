@@ -30,7 +30,7 @@ typedef bit<48> macAddr_t;
 typedef bit<32> ip4Addr_t;
 typedef bit<48> key_t; //The keys used is dsrAddr++srcPort, so 48 bits
 typedef bit<16>  hash_t;
-typedef bit<32> val_t;
+typedef bit<63> val_t;
 
 
 header ethernet_t {
@@ -87,10 +87,10 @@ struct headers {
 
 // register<bit<160>>(REGISTERS_SIZE) t_reg; // Each port has a 160 bits slot which serves to write the features' bitmaps
 // In light of the reading problems past 2^63, we separate them for now
-register<bit<32>>(REGISTERS_SIZE) IPsrc_reg;
-register<bit<32>>(REGISTERS_SIZE) IPdst_reg;
-register<bit<32>>(REGISTERS_SIZE) Portsrc_reg;
-register<bit<32>>(REGISTERS_SIZE) pktLength_reg;
+register<bit<63>>(REGISTERS_SIZE) IPsrc_reg;
+register<bit<63>>(REGISTERS_SIZE) IPdst_reg;
+register<bit<63>>(REGISTERS_SIZE) Portsrc_reg;
+register<bit<63>>(REGISTERS_SIZE) pktLength_reg;
 
 /*************************************************************************
 *********************** P A R S E R  ***********************************
@@ -179,44 +179,44 @@ control MyIngress(inout headers hdr,
 		hash(meta.h1, HashAlgorithm.crc32,
 			16w0,
 			{hdr.ipv4.dstAddr},
-			16w31
+			16w62
 		);
 		hash(meta.h2, HashAlgorithm.crc32,
 			16w0,
 			{hdr.ipv4.srcAddr},
-			16w31
+			16w62
 		);
 		hash(meta.h3, HashAlgorithm.crc32,
 			16w0,
 			{hdr.tcp.srcPort},
-			16w31
+			16w62
 		);
-		hash(meta.h4, HashAlgorithm.crc32,
+		hash(meta.h4, HashAlgorithm.crc32,						// Busted. Is std's packet_length the cause?
 			16w0,
 			{standard_metadata.packet_length},
-			16w31
+			16w62
 		);
     }
 	
-	// Shifts is limited to 8 bits on v1model, so we need to use something else, for example a table
+	// Shifts is limited to 8 bits on v1model, so we need to use something else, here a table
 	// Sadly, we still can't invoke tables within actions
-	action write_tmp1( bit<32> var1) {
+	action write_tmp1( bit<63> var1) {
 		meta.val1 = meta.val1 | var1 ;
 	}
-	action write_tmp2( bit<32> var2) {
+	action write_tmp2( bit<63> var2) {
 		meta.val2 = meta.val2 | var2 ;
 	}
-	action write_tmp3( bit<32> var3) {
+	action write_tmp3( bit<63> var3) {
 		meta.val3 = meta.val3 | var3 ;
 	}
-	action write_tmp4( bit<32> var4) {
+	action write_tmp4( bit<63> var4) {
 		meta.val4 = meta.val4 | var4 ;
 	}
 	table dstIP_table {
 		key = { meta.h1: exact; }
 		actions = { drop; NoAction; write_tmp1; }
 		const entries = {
-			#include "./tables/table1.txt"  
+			#include "./tables/table1_63.txt"  
 		}
 		default_action = NoAction();
 	}
@@ -224,7 +224,7 @@ control MyIngress(inout headers hdr,
 		key = { meta.h2: exact; }
 		actions = { drop; NoAction; write_tmp2; }
 		const entries = { 
-			#include "./tables/table2.txt"  
+			#include "./tables/table2_63.txt"  
 		}
 		default_action = NoAction();
 	}
@@ -232,7 +232,7 @@ control MyIngress(inout headers hdr,
 		key = { meta.h3: exact; }
 		actions = { drop; NoAction; write_tmp3; }
 		const entries = { 
-			#include "./tables/table3.txt"  
+			#include "./tables/table3_63.txt"  
 		}
 		default_action = NoAction();
 	}
@@ -240,7 +240,7 @@ control MyIngress(inout headers hdr,
 		key = { meta.h4: exact; }
 		actions = { drop; NoAction; write_tmp4; }
 		const entries = { 
-			#include "./tables/table4.txt"  
+			#include "./tables/table4_63.txt"  
 		}
 		default_action = NoAction();
 	}

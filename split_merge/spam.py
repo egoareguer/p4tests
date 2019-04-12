@@ -28,14 +28,15 @@ def main():
     iface = get_if()
 
     keys=[]
-    N=128
+    N=254
     for i in range (N):
 		for j in range(i): # In other words, i random packets to port i
 						   # Sport, Rrc and Dst IPs are completely random	
 			sport=str(random.randint(1024, 64444))
 			ip1=str(random.randint(1,254))+'.'+str(random.randint(1,254))+'.'+str(random.randint(1,254))+'.'+str(random.randint(1,254))
 			ip2=str(random.randint(1,254))+'.'+str(random.randint(1,254))+'.'+str(random.randint(1,254))+'.'+str(random.randint(1,254))
-			lenPadding=random.randint(1,100)*"p"
+			# pktLen_reg's estimation doesn't work. TODO: Fix it!
+			lenPadding=random.randint(1,100)*"pppp"
 			keys.append((sport,i,ip1,ip2,lenPadding))
 
     print(len(keys))

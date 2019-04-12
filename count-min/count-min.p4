@@ -234,6 +234,7 @@ control MyIngress(inout headers hdr,
 			}
 			if(meta.current_min == HH_THRESHOLD) { // We only insert the first 255 hh to cross the threshold
 							       // TODO: have an exponential decay/periodic resest joined to it
+								   // This might need the control plane because loops and consecutive branching conditionals don't play nice with p4 at all. It's not meant to be there.
 				
 				//-> if the update pushed the min over HH_THRESHOLD, add key to hh_reg
 				bit<48> tmp;

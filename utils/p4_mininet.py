@@ -160,3 +160,4 @@ class P4Switch(Switch):
     def detach(self, intf):
         "Disconnect a data port"
         assert(0)
+
