@@ -2,4 +2,3 @@ Recirc
 Pseudocode & doc outside of comments
 Everything in the same folder with the makefile to distinguish things 
 Find out why syn_count gets initialized with value 36 for no reason
-PortBlock part. Obviously

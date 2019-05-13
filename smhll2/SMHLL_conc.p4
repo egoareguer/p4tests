@@ -205,11 +205,7 @@ control MyIngress(inout headers hdr,
 		>register reads
 		>register writes
 	*/
-	// They need a branching, either through IFs or a table
-	// We use a table
-	// Said table match on a flag in the header. 
-	// THIS IMPLIES USING THIS PROGRAM IN A DEDICATED MIDDLEBLOX ENVIRONMENT
-
+	// In this version, we just hardcode each stages to take place consecutively, without any recirculation
 
 
 	// Hashing 
@@ -324,29 +320,15 @@ control MyIngress(inout headers hdr,
 		meta.address = (bit<32>)meta.index+((bit<32>)256*(bit<32>)meta.portBlock);
 		pktLen_masterReg.read(meta.actual_zeroes, (bit<32>)meta.address);
 	}
-	table hash_zeroes  {
-		key = { hdr.ethernet.etherType : exact; }
-		actions = { 
-		drop; 
-		NoAction; 
-		hash_srcIPzeroes; 
-		hash_dstIPzeroes;
-		hash_srcPortZeroes;
-		hash_pktLenZeroes;
-		}
-		default_action = drop;
-		const entries = {
-			0x0800 : hash_srcIPzeroes();
-			0x08AB : hash_dstIPzeroes();
-			0x08AC : hash_srcPortZeroes();
-			0x08AD : hash_pktLenZeroes();
-		}
-	}
-	
 
 	// ********************************************** //
     // *************** Counting Zeroes ************** //
 	// ********************************************** //
+
+	// One restrictions we need to fulfil is :
+	// for a single pipeline runthrough, a given table
+	// may be called _ONCE_
+	// Therefore, to use is four times we need four instances of it
 
 	action save_seenZeroes(short_byte_t value){
 	// called by count_zeroes table
@@ -354,7 +336,7 @@ control MyIngress(inout headers hdr,
 	//		bit<6> meta.seen_zeroes
 		meta.seen_zeroes = value;
 	}
-	table count_zeroes {
+	table count_zeroes1 {
 	// Hardcoded table to count the zeroes for the srcIP register
 	/* uses:
 		bit<56> meta.remnant
@@ -368,8 +350,48 @@ control MyIngress(inout headers hdr,
 			#include "./tables/table_56zeroes_lpm.txt"
 		}
 	}
-
-
+	table count_zeroes2 {
+	// Hardcoded table to count the zeroes for the srcIP register
+	/* uses:
+		bit<56> meta.remnant
+		action write_srcIPzeroes
+	*/
+		key = { meta.remnant: lpm; }
+		actions = {drop; NoAction; save_seenZeroes;} 
+		size = 56;
+		default_action = NoAction;
+		const entries = {
+			#include "./tables/table_56zeroes_lpm.txt"
+		}
+	}
+	table count_zeroes3 {
+	// Hardcoded table to count the zeroes for the srcIP register
+	/* uses:
+		bit<56> meta.remnant
+		action write_srcIPzeroes
+	*/
+		key = { meta.remnant: lpm; }
+		actions = {drop; NoAction; save_seenZeroes;} 
+		size = 56;
+		default_action = NoAction;
+		const entries = {
+			#include "./tables/table_56zeroes_lpm.txt"
+		}
+	}
+	table count_zeroes4 {
+	// Hardcoded table to count the zeroes for the srcIP register
+	/* uses:
+		bit<56> meta.remnant
+		action write_srcIPzeroes
+	*/
+		key = { meta.remnant: lpm; }
+		actions = {drop; NoAction; save_seenZeroes;} 
+		size = 56;
+		default_action = NoAction;
+		const entries = {
+			#include "./tables/table_56zeroes_lpm.txt"
+		}
+	}
 	// Actions to push the highest value count with compile constant register references
 	action write_srcIPzeroes(){
 		IPsrc_masterReg.write((bit<32>)meta.address, meta.seen_zeroes);
@@ -383,24 +405,6 @@ control MyIngress(inout headers hdr,
 	action write_pktLenZeroes(){
 		pktLen_masterReg.write((bit<32>)meta.address, meta.seen_zeroes);
 	}
-	table push_zeroes  {
-		key = { hdr.ethernet.etherType : exact; }
-		actions = { 
-		drop; 
-		NoAction; 
-		write_srcIPzeroes; 
-		write_dstIPzeroes;
-		write_srcPortZeroes;
-		write_pktLenZeroes;
-		}
-		default_action = drop;
-		const entries = {
-			0x0800 : write_srcIPzeroes();
-			0x08AB : write_dstIPzeroes();
-			0x08AC : write_srcPortZeroes();
-			0x08AD : write_pktLenZeroes();
-		}
-	}
 
 	// ********************************************** //
 	// ************* Ingress execution ************** //
@@ -408,13 +412,34 @@ control MyIngress(inout headers hdr,
 
 	apply {
 	//Reminder: conditionals aren't supported in actions on v1model
+
+	//SYN counting
 		if (standard_metadata.instance_type==0){
 			syn_count();
 		}
-		hash_zeroes.apply();
-		count_zeroes.apply();
+	// IPsrc count processing
+		hash_srcIPzeroes();
+		count_zeroes1.apply();
 		if (meta.seen_zeroes > meta.actual_zeroes) {
-			push_zeroes.apply();
+			write_srcIPzeroes();
+		}
+	// IPdst count processing
+		hash_dstIPzeroes();
+		count_zeroes2.apply();
+		if (meta.seen_zeroes > meta.actual_zeroes) {
+			write_srcIPzeroes();
+		}
+	// srcPort count processing
+		hash_srcPortZeroes();
+		count_zeroes3.apply();
+		if (meta.seen_zeroes > meta.actual_zeroes) {
+			write_srcIPzeroes();
+		}
+	// pktLen
+		hash_pktLenZeroes();
+		count_zeroes4.apply();
+		if (meta.seen_zeroes > meta.actual_zeroes) {
+			write_srcIPzeroes();
 		}
 	}
 }
@@ -429,24 +454,8 @@ control MyEgress(inout headers hdr,
 	action drop() {
         mark_to_drop();
     }	
-	action recirc(recirc_key_t k){
-		hdr.ethernet.etherType = k;
-		recirculate(standard_metadata);
-	}
-	table recirc_table {
-		actions = { drop; NoAction; recirc; }
-		key = { hdr.ethernet.etherType : exact; }
-		size = 3;
-		default_action = drop;
-		const entries = {
-			0x0800 : recirc(0x08AB);
-			0x08AB : recirc(0x08AC); 
-			0X08AC : recirc(0x08AD);
-		}
-	}
-    apply {
-		recirc_table.apply();
-	}
+	
+    apply { }
 }
 
 /*************************************************************************
