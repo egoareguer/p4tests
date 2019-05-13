@@ -341,7 +341,7 @@ control MyIngress(inout headers hdr,
 		}
 		default_action = drop;
 		const entries = {
-			0x08AA : hash_srcIPzeroes();
+			0x0800 : hash_srcIPzeroes();
 			0x08AB : hash_dstIPzeroes();
 			0x08AC : hash_srcPortZeroes();
 			0x08AD : hash_pktLenZeroes();
@@ -400,7 +400,7 @@ control MyIngress(inout headers hdr,
 		}
 		default_action = drop;
 		const entries = {
-			0x08AA : write_srcIPzeroes();
+			0x0800 : write_srcIPzeroes();
 			0x08AB : write_dstIPzeroes();
 			0x08AC : write_srcPortZeroes();
 			0x08AD : write_pktLenZeroes();
@@ -436,7 +436,7 @@ control MyEgress(inout headers hdr,
     }	
 	action recirc(recirc_key_t k){
 		hdr.ethernet.etherType = k;
-		recirculate();
+		recirculate(standard_metadata);
 	}
 	table recirc_table {
 		actions = { drop; NoAction; recirc; }
@@ -444,7 +444,7 @@ control MyEgress(inout headers hdr,
 		size = 3;
 		default_action = drop;
 		const entries = {
-			0x08AA : recirc(0x08AB);
+			0x0800 : recirc(0x08AB);
 			0x08AB : recirc(0x08AC); 
 			0X08AC : recirc(0x08AD);
 		}
