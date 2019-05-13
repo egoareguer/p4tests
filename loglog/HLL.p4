@@ -182,7 +182,7 @@ control MyIngress(inout headers hdr,
     }
 
     table zeroes_lpm { //do a lpm match on remnant using pre-inserted table entries to determine what to write
-		       //The counter helps determine whether we're close to the start/end
+					   //The counter helps determine whether we're close to the start/end
 	key = { meta.remnant: lpm; }
 	actions = {
 		NoAction;

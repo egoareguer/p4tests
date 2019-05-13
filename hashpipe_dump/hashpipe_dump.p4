@@ -2,7 +2,11 @@
 #include <core.p4>
 #include <v1model.p4>
 
+//This is hashpipe + an addition to dump everything when prompted by a packet with a reg_dump_t announced by a A010 ethertyp
+
 const bit<16> TYPE_IPV4 = 0x800;
+const bit<16> TYPE_REG_DUMP = 0xA0A0;
+#define REGISTERS_SIZE 256
 
 /* This is a modified solution/basic.p4 file from the p4lang tutorials. 
    The main idea is to include an elementary hashpipe structure to the overall pipeline. 
@@ -43,8 +47,10 @@ In other words:
 typedef bit<9>  egressSpec_t;
 typedef bit<48> macAddr_t;
 typedef bit<32> ip4Addr_t;
-typedef bit<72> key_t; //The keys used is dsrAddr++srcAddr++protocol, so 72 bits
+typedef bit<48> key_t; //The keys used is dsrAddr++srcPort, so 48 bits
 typedef bit<24> val_t; //Arbitrary bit count 
+typedef bit<32> index_t;
+
 
 header ethernet_t {
     macAddr_t dstAddr;
@@ -68,37 +74,53 @@ header ipv4_t {
 }
 
 header tcp_t {
-    bit<16> srcPort;
-    bit<16> dstPort;
-    bit<32> seqNo;
-    bit<32> ackNo;
-    bit<4> dataOffset;
-    bit<3> res;
-    bit<3> ecn;
-    bit<6> ctrl;
-    bit<16> window;
-    bit<16> checksum;
-    bit<16> urgentPtr ;
+	bit<16> srcPort;
+	bit<16> dstPort;
+	bit<32> seqNo;
+	bit<32> ackNo;
+	bit<4> dataOffset;
+	bit<3> res;
+	bit<3> ecn;
+	bit<6> ctrl;
+	bit<16> window;
+	bit<16> checksum;
+	bit<16> urgentPtr;
 }
 
+header reg_dump_t {
+	// Since we're using the switch as a middlebox, we'll assume MTU = 1500 bytes
+	// We dumpt register pairs one at a time, recirculate it for a new turn every time
+	bit<8> reg_num; //Which register do we dump? We'll have to use special tables to match on this
+	bit<1> portion; //Difference between key dump and val dump
+	bit<10000> payload;
+}
 
-struct metadata {
-	key_t cKey; //cKey & cVal stand for Current Key & Current Val. They are used for the rolling minimum values.
+struct customMetadata_t {
+	index_t index1; 
+	index_t index2;
+	index_t index3;	
+	key_t cKey; 
+	key_t keyInTable; 
+//
 	val_t cVal;
-	key_t keyInTable; //Used to read the values actually in the table, and to swap them without losing them
-	val_t valInTable; 
-	key_t index; //Used to store the hash value.
+	val_t valInTable;
+
+	bit<1> match;
+	bit<1> isRecirculate;
 }
 
 struct headers {
     ethernet_t   ethernet;
     ipv4_t       ipv4;
+    tcp_t	 tcp;
 }
 
-register<bit<72>>(100) rKeys1; //72 bits for srcAddr++dstAddr+protocol. 
-register<bit<24>>(100) rVals1; //TODO: don't hardcode what they keys are
-register<bit<72>>(100) rKeys2; //100 is an arbitrary value. 
-register<bit<24>>(100) rVals2;
+register<bit<48>>(REGISTERS_SIZE) rKeys1;
+register<bit<48>>(REGISTERS_SIZE) rKeys2;
+register<bit<48>>(REGISTERS_SIZE) rKeys3;
+register<bit<24>>(REGISTERS_SIZE) rVals1;
+register<bit<24>>(REGISTERS_SIZE) rVals2;
+register<bit<24>>(REGISTERS_SIZE) rVals3;
 
 /*************************************************************************
 *********************** P A R S E R  ***********************************
@@ -106,7 +128,7 @@ register<bit<24>>(100) rVals2;
 
 parser MyParser(packet_in packet,
                 out headers hdr,
-                inout metadata meta,
+                inout customMetadata_t meta,
                 inout standard_metadata_t standard_metadata) {
 
     state start {
@@ -117,42 +139,39 @@ parser MyParser(packet_in packet,
         packet.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
             TYPE_IPV4: parse_ipv4;
+			TYPE_REG_DUMP: parse_reg_dump;
             default: accept;
         }
     }
 
     state parse_ipv4 {
         packet.extract(hdr.ipv4);
-        transition accept;
+		transition select(hdr.ipv4.protocol) {
+		6:	 parse_tcp;
+        	default: accept;
+		}
     }
-
+	state parse_reg_dump {
+		//Conditional are forbidden from parsers!
+		packet.extract(hdr.ipv4);
+		transition select(hdr.reg_dump.reg_num) {
+			//Don't need to branch on reg num in the parser
+			default; accept;
+		}
+	}
+    state parse_tcp {
+	packet.extract(hdr.tcp);
+		transition accept; // No recirculate in hashpipe by design
+    }
 }
 
 /*************************************************************************
 ************   C H E C K S U M    V E R I F I C A T I O N   *************
 *************************************************************************/
 
-control MyVerifyChecksum(inout headers hdr, inout metadata meta) {   
+control MyVerifyChecksum(inout headers hdr, inout customMetadata_t meta) {   
     apply {  }
 }
-
-extern Checksum1 { //Useless at the moment, ignore
-	Checksum1();
-	void clear();
-	void update<T>(in T data);
-	void remove<T>(in T data);
-	bit<32> get();
-	bit<32> compute(inout headers hdr, inout metadata meta, out key_t ket);
-}
-extern Checksum2 {
-	Checksum2();
-	void clear();
-	void update<T>(in T data);
-	void remove<T>(in T data);
-	bit<32> get();
-}
-
-
 
 /*************************************************************************
 **************  I N G R E S S   P R O C E S S I N G   *******************
@@ -162,60 +181,21 @@ extern Checksum2 {
 //action ActionX corresponds to stageX. Obviously that's not sustainable for d higher than 2 and something to adress. //TODO
 
 control MyIngress(inout headers hdr,
-                  inout metadata meta,
+                  inout customMetadata_t meta,
                   inout standard_metadata_t standard_metadata
-       ) {
+    ) {
 
-    action calculate_key() { //The key'll depend on what we're counting. Let's assume srcAddr,dstPort for now
-	meta.key[31:0] = hdr.ipv4.srcAddr;
-	meta.key[48:32] = hdr.ipv4.dstPort;	
-    }
- 
-    action calculate_indexes() { //We use the same hash function but insert garbage strings to the arguments as seeds. TODO check the literature for how to do this without risking biaises
-	hash(meta.index1, 
-		HashAlgorithm.crc32, 
-		64w0,
-		{ hdr.ipv4.srcAddr, hdr.tcp.dstPort },
-		64w0xFFFFFFFFFFFFFFFF
-	);
-	hash(meta.index2,
-		HashAlgorith.crc32,
-		64w0,
-		{ hdr.ipv4.srcAddr, 6w11, hdr.tcp.dstPort },
-		64w0xFFFFFFFFFFFFFFFF
-	};
-	hash(meta.index3,
-		HashAlgorithm.crc32,
-		64w0,
-		{ hdr.ipv4.srcAddr, 11w37, hdr.tcp.dstPort },
-		64w0xFFFFFFFFFFFFFFFF
-	};
-    }
 
-    action do_stage1() { 
-	// 
-    }
-
-    action do_stage2(){
-	
-    }
-
+    // ***** standard fare ipv4 forwarding *****
     action drop() {
         mark_to_drop();
     }
-    action insert1 () { //TODO: change it so it takes a register ref in parameter instead of spelling them out
-			//insert1 corresponds to finding the no saved value for the given key
-	rKeys1.write((bit<32>)meta.index, hdr.ipv4.dstAddr++hdr.ipv4.srcAddr++hdr.ipv4.protocol) ;
-	rVals1.write((bit<32>)meta.index, 1 ) ;
-    }
-   
     action ipv4_forward(macAddr_t dstAddr, egressSpec_t port) {
         standard_metadata.egress_spec = port;
         hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
         hdr.ethernet.dstAddr = dstAddr;
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
     }
-    
     table ipv4_lpm {
         key = {
             hdr.ipv4.dstAddr: lpm;
@@ -228,107 +208,150 @@ control MyIngress(inout headers hdr,
         size = 1024;
         default_action = NoAction();
     }
-
-    table track_stage1 { //They're called track_stageX after the prototype 
-			 //They're currently redundant, the control handles everything.
-			 //
-	key = {
-		meta.cKey: exact;
-	}
-	actions = {
-	    do_stage1;
-	    insert1;
-	    drop;
-	    NoAction ;
-	}
-	default_action = insert1();
+    // ***** Initialization actions set_key() & calculate_indexes *****
+    action set_key() {
+	meta.cKey[31:0] = hdr.ipv4.srcAddr;
+	meta.cKey[47:32] = hdr.tcp.dstPort;	
+    }
+    action calculate_indexes() { //TODO check CRCs to make sure it verifies that they're parametered in a way that doesn't throw off the precision
+	hash(meta.index1, HashAlgorithm.crc32, 
+		32w0,
+		{ 
+		3w5,
+		hdr.ipv4.srcAddr,
+		7w10,
+		hdr.tcp.dstPort
+		},
+		32w255 // troubleshooting: if on compilation, you get something like 
+//simple_switch: ../../include/bm/bm_sim/stateful.h:117: const bm::Register& bm::RegisterArray::operator[](size_t) const: Assertion `idx < size()' failed
+//It means the index was out of range, and this is probably where it'll need fixing
+	);
+	hash(meta.index2, HashAlgorithm.crc32, 
+		64w0,
+		{ 
+		hdr.ipv4.srcAddr,
+		5w3, 
+		hdr.tcp.dstPort,
+		6w6
+		},
+		32w255
+	);
+	hash(meta.index3, HashAlgorithm.crc32, 
+		32w0,
+		{ 
+		8w42,
+		hdr.ipv4.srcAddr,
+		hdr.tcp.dstPort,
+		4w0b1010
+		},
+		32w255
+	);
     }
 
-    table track_stage2 {
-	key = {
-		meta.cKey: exact;
-	}
-	actions = {
-	    do_stage2;
-	    drop;
-	    NoAction ;
-	}
-	default_action  = do_stage2();
-    }
+// ***** Hashpipe specific actions ***** //
+// TODO: use parameters for the generic insert, increment, evict
+// TODO: consider using includes, and making a script to automate writing them
 
-    action increment1 () {  //used if we found the same key in rKey1[index]
-	rVals1.write((bit<32>)meta.index, meta.valInTable+1) ; //if it is, we just plug increment it once 
+// ***** Stage 1 actions ***** //
+// Stage 1 is distinct because we always insert values into register1 
+// as part of Hashpipe's "one pass per packet" design
+
+    action insert1 () { //insert1 corresponds to an empty counter in register1
+	rKeys1.write((bit<32>)meta.index1, meta.cKey);
+	rVals1.write((bit<32>)meta.index1, 1 );
     }
-    
+    action increment1 () {  //used if we're processing the same key as in rKey1[index]
+	rVals1.write((bit<32>)meta.index1, meta.valInTable+1); 
+    }
     action swap1 () { //Used to force insertion into the first table and save the new minimums
-	rKeys1.read(meta.cKey, (bit<32>)meta.index);
-	rVals1.read(meta.cVal, (bit<32>)meta.index);
-	rKeys1.write((bit<32>)meta.index, hdr.ipv4.dstAddr++hdr.ipv4.srcAddr++hdr.ipv4.protocol );
-	rVals1.write((bit<32>)meta.index, 1 ) ;
-
+	rKeys1.read(meta.keyInTable, meta.index1);
+	rVals1.read(meta.valInTable, meta.index1);
+	rKeys1.write((bit<32>)meta.index1, meta.cKey);
+	rVals1.write((bit<32>)meta.index1, 1 ) ;
+	meta.cKey=meta.keyInTable;
+	meta.cVal=meta.valInTable;
     }
+
+// ***** Stage 2 actions ***** //
+// Stages 2+ are all the same save for the register pair used 
     action increment2 () { //rkeys2[index] == cKey
-	rVals2.read(meta.valInTable, (bit<32>)meta.index) ; 
-	rVals2.write((bit<32>)meta.index, meta.valInTable + meta.cVal ) ; 
+	rVals2.read(meta.valInTable, (bit<32>)meta.index2) ; 
+	rVals2.write((bit<32>)meta.index2, meta.valInTable + meta.cVal ) ; 
     }
     action insert2() {	//nothing in rKeys2[index] yet
-	rKeys2.write((bit<32>)meta.index, meta.cKey ) ;
-	rVals2.write((bit<32>)meta.index, meta.cVal ) ;
+	rKeys2.write((bit<32>)meta.index2, meta.cKey ) ;
+	rVals2.write((bit<32>)meta.index2, meta.cVal ) ;
     }
-    action evict2() { //Evict the current couple because its count is lower, swap it in cKey,cVal
-	rKeys2.write((bit<32>)meta.index, meta.cKey ) ;
-	rVals2.write((bit<32>)meta.index, meta.cVal ) ; 
+    action evict2() { //Evict the lower key,val of register2, swap it in cKey,cVal
+	rKeys2.write((bit<32>)meta.index2, meta.cKey ) ;
+	rVals2.write((bit<32>)meta.index2, meta.cVal ) ; 
+	meta.cKey = meta.keyInTable ;
+	meta.cVal = meta.valInTable ;
+    }
+
+// ***** Stage 3 actions ***** //
+    action increment3 () { //rkeys3[index3] == cKey
+	rVals3.read(meta.valInTable, (bit<32>)meta.index3); 
+	rVals3.write((bit<32>)meta.index3, meta.valInTable + meta.cVal ) ; 
+    }
+    action insert3() {	//nothing in rKeys3[index3] yet
+	rKeys3.write((bit<32>)meta.index3, meta.cKey ) ;
+	rVals3.write((bit<32>)meta.index3, meta.cVal ) ;
+    }
+    action evict3() { //Evict the lower key,val of register3, swap it in cKey,cVal
+	rKeys3.write((bit<32>)meta.index3, meta.cKey ) ;
+	rVals3.write((bit<32>)meta.index3, meta.cVal ) ; 
 	meta.cKey = meta.keyInTable ;
 	meta.cVal = meta.valInTable ;
 
     }
-
     apply {
-        if (hdr.ipv4.isValid()) { //prepare forwarding off ipv4 fields
-            ipv4_lpm.apply();
+        if (hdr.ipv4.isValid() && hdr.tcp.isValid() ) { //We need both for the keys
+            ipv4_lpm.apply(); //Just forward normally
         }
 
-	//stage1
-	meta.cKey = hdr.ipv4.dstAddr++hdr.ipv4.srcAddr++hdr.ipv4.protocol ; //key of incoming packet
-	hash( //hash said key, push it into meta.index
-		meta.index, HashAlgorithm.crc16, //read index with the hash of stage 1 
-		32w0,                         //currently crc16. TODO introduce (ax+b)%p hashes (a,b co-prime)?
-		{
-		  hdr.ipv4.dstAddr, hdr.ipv4.srcAddr, hdr.ipv4.protocol 
-		},
-		32w100
-	);
-	rKeys1.read(meta.keyInTable, (bit<32>)meta.index); //keyInTable is the key actually in register 1 
-	rVals1.read(meta.valInTable, (bit<32>)meta.index); //countInTable is the 	
+	//Initialization
+	set_key();
+	calculate_indexes();
 
-	if (meta.valInTable == 0 ) { //We check if it's an empty slot first. If it is, we just slot in.
-		insert1();
-		exit ; 
+	//Stage 1
+	//Note that IFs in actions are unsupported
+	rKeys1.read(meta.keyInTable, meta.index1);  
+	rVals1.read(meta.valInTable, (bit<32>)meta.index1); 
+
+	if (meta.valInTable == 0 ) { // Empty = Insertion 
+		insert1(); exit ; 
 	} 
-	else if (meta.keyInTable == meta.cKey ) { //Next we check if it's the same key 
-		increment1();
-		exit ;
-	} else { //Final case: always slot it in, save the old values in metadata fields cKey, cVal
-		swap1() ;
+	else if (meta.keyInTable == meta.cKey ) { //Same key = Incrementation
+		increment1(); exit ;
+	} else { //Insert in first register, by design
+		swap1();
 	}
-	
 
-	//stage2. Mostly the same
-	hash(meta.index, HashAlgorithm.csum16,
-		32w0,
-		{
-		  hdr.ipv4.dstAddr, hdr.ipv4.srcAddr, hdr.ipv4.protocol
-		},
-		32w100);
-	rKeys2.read(meta.keyInTable, (bit<32>)meta.index) ; 
+	//Stage 2 Mostly the same
+	rKeys2.read(meta.keyInTable, (bit<32>)meta.index2) ; 
+	rVals2.read(meta.valInTable, (bit<32>)meta.index2);
 	if (meta.cKey == meta.keyInTable ) { //Keys Match ! 
 		increment2();
 	}
 	else if (meta.valInTable == 0 ) { //Empty slot 
 		insert2();
 	} 
-	else if (meta.valInTable < meta.cVal ) { //Evict lower count, swap it with rolling minimum
+	else if (meta.valInTable < meta.cVal ) { //Evict the lower count
 		evict2();
+	}
+
+	//Stage 3
+	rKeys3.read(meta.keyInTable, (bit<32>)meta.index3) ; 
+	rVals3.read(meta.valInTable, (bit<32>)meta.index3);
+	if (meta.cKey == meta.keyInTable ) { //Keys Match ! 
+		increment2();
+	}
+	else if (meta.valInTable == 0 ) { //Empty slot 
+		insert3();
+	} 
+	else if (meta.valInTable < meta.cVal ) { //Evict the lower count
+		evict3();
 	}
     }
 }
@@ -338,7 +361,7 @@ control MyIngress(inout headers hdr,
 *************************************************************************/
 
 control MyEgress(inout headers hdr,
-                 inout metadata meta,
+                 inout customMetadata_t meta,
                  inout standard_metadata_t standard_metadata) {
     apply {  }
 }
@@ -347,7 +370,7 @@ control MyEgress(inout headers hdr,
 *************   C H E C K S U M    C O M P U T A T I O N   **************
 *************************************************************************/
 
-control MyComputeChecksum(inout headers  hdr, inout metadata meta) {
+control MyComputeChecksum(inout headers  hdr, inout customMetadata_t meta) {
      apply {
 	update_checksum(
 	    hdr.ipv4.isValid(),

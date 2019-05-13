@@ -1,6 +1,11 @@
+#### WHAT TO DO 
+
+Make sure the necessary bins are in your path, make
+
 #### TODOS 
 
 Use recirculates in place of dual instantiations?
+Handle the tables in a way that doesn't need to be pushed/regen'd each time?
 
 #### Why we duplicate the tables 
 

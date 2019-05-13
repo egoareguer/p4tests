@@ -36,6 +36,7 @@ use warnings;
 my @m=(5,6);
 my @N=(16,32,64);
 my $l=10;
+my $lineno=0;
 
 foreach my $N (@N) {
 	foreach my $m (@m) {
@@ -50,6 +51,12 @@ foreach my $N (@N) {
 		# For convenience, we also write the variables at the start of the file, commented for .p4
 		printf $log_out " // N=$N; m=$m; l=$l; w=$w ; 2**w=%.2f \n", 2**$w;
 		print $exp_out " // N=$N; m=$m; l=$l; w=$w \n";
+
+		# Data file for plots
+		open(my $x_axe_f, ">", "./figures/x_axe$N\_$m.txt")							 or die "Can't open output file: $!";
+		open(my $dat_out, ">", "./figures/log_fig_$N"."bits_$m"."precision.txt") or die "Can't open output file: $!";
+		print $dat_out "[";
+		$lineno=0;
 
 	# *-*-*-*-*-*-* Writing the log table *-*-*-*-*-*-*
 		for (my $n=0; $n < $N; $n++) { 
@@ -107,12 +114,20 @@ foreach my $N (@N) {
 				print  $log_out ");";
 
 			# Testing/debug prints
+				my $decval=sprintf ("%.3f", $logval/$log2);
+				print $log_out "// $decval";
 				#my $binvar = sprintf "%0b", $var;
 				#print $log_out " min $min max $max n $n ";
 #				print $log_out "\n var=$var; logval=$logval";
 #				print $log_out "\n logvalshifted=$logvalshifted";
 #				printf $log_out "\n passed log %.8f", $logval*2**$w/$log2 ;  #Current
 #				print $log_out "\n $binvar ";
+
+			# Plot prints
+				$lineno++;
+				print $dat_out "$decval ,";
+				$decval=sprintf("%.3f", (2**$m+$min)*(2**$max));
+				print $x_axe_f "$lineno - $decval \n" unless $n == $N-1;
 
 			# line break between entries
 				print $log_out "\n";
@@ -135,7 +150,10 @@ foreach my $N (@N) {
 			my $bines = sprintf "%0$N"."B", $eshift;
 #			print $exp_out "$N"."w0b"."$binj : write_exp($N"."w0b$bines); \n";
 		}
-		close $log_out or die "$log_out: $!";
-		close $exp_out or die "$exp_out: $!";
+		close $log_out  or die "$log_out:   $!";
+		close $exp_out  or die "$exp_out:   $!";
+
+		print $dat_out "]";
+		close $dat_out or die "$dat_out: $!";
 	}
 }
