@@ -31,7 +31,7 @@ def main():
     N=254
     for i in range (N):
 		for j in range(i): # In other words, i random packets to port i
-						   # Sport, Rrc and Dst IPs are completely random	
+						   # Sport, Src and Dst IPs are completely random	
 			sport=str(random.randint(1024, 64444))
 			ip1=str(random.randint(1,254))+'.'+str(random.randint(1,254))+'.'+str(random.randint(1,254))+'.'+str(random.randint(1,254))
 			ip2=str(random.randint(1,254))+'.'+str(random.randint(1,254))+'.'+str(random.randint(1,254))+'.'+str(random.randint(1,254))

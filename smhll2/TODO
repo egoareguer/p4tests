@@ -1,4 +1,12 @@
-Recirc
 Pseudocode & doc outside of comments
 Everything in the same folder with the makefile to distinguish things 
-Find out why syn_count gets initialized with value 36 for no reason
+Find out why syn_count gets initialized with a non-zero value for no reason
+
+Estimate scaled to multiple flows
+
+Register dump scaled to multiple flows -> need a hook!
+	>use the bos parser loop ? or recirculate 
+	>use a given etherType flag to trigger dump
+	>need a matching reception scapy script to assemply the packets as they arrive
+	>Could use a bunch of packets instead, one for each port, with a proper script.
+loglog limits estimation?

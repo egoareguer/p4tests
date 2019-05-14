@@ -8,7 +8,7 @@ const bit<16> TYPE_IPV4 = 0x800;
 			     // -> 160bit entries in the register
 
 #define NUM_HLL_REGISTERS 256 //Directly correlates to HLL's error estimation
-#define NUM_K_FLOWS 256 //How many flows we'll have kept
+#define NUM_N_FLOWS 256 //How many flows we'll have kept
 			  
 
 /* We want, aggregated by dst port, lightweight collection tables of the following features:
@@ -30,7 +30,7 @@ typedef bit<48> macAddr_t;
 typedef bit<32> ip4Addr_t;
 
 //Types used by HLL + SplitMerge
-typedef bit<8>  portBlock_t;
+typedef bit<16> portBlock_t;
 typedef bit<32> address_t;
 typedef bit<32> hash_t;
 typedef bit<56> remnant_t;
@@ -196,6 +196,23 @@ control MyIngress(inout headers hdr,
 	}
 
 	// ********************************************** //
+	// ************** PortBlock match *************** //
+	// ********************************************** //
+
+	action setPortBlock(bit<16> dstPort){
+	// Uses bit<16> meta.portBlock
+		meta.portBlock = dstPort;
+	}
+	table portBlock_match {
+		key = { hdr.tcp.dstPort : exact; }
+		actions = { drop; NoAction; setPortBlock; };
+		size = NUM_N_FLOWS ; 
+		const entries = {
+			#include "portBlock_entries.txt"
+		}
+	}
+
+// ********************************************** //
     // *************** Initialization *************** //
 	// ********************************************** //
 
