@@ -36,6 +36,7 @@ typedef bit<32> hash_t;
 typedef bit<56> remnant_t;
 typedef bit<8>  index_t;
 typedef bit<6>  short_byte_t;
+typedef bit<8>  dumpFlag_t;
 
 typedef bit<16> recirc_key_t;
 
@@ -75,22 +76,29 @@ header tcp_t {
 	bit<16> urgentPtr;
 }
 
+header portBlock_t {
+	bit<1536> value;
+}
+
 struct customMetadata_t {
-	hash_t hash;
-	hash_t hash2;
-	index_t index;
-	remnant_t remnant;
-	short_byte_t actual_zeroes;
-	short_byte_t seen_zeroes;
-	address_t address;
-	portBlock_t portBlock;
-	recirc_key_t recirc_key;
+	hash_t			hash;
+	hash_t			hash2;
+	index_t			index;
+	remnant_t		remnant;
+	short_byte_t	actual_zeroes;
+	short_byte_t	seen_zeroes;
+	address_t		address;
+	portBlock_t		portBlock;
+	recirc_key_t	recirc_key;
+	bit<1>			returnFlag;	
+	dumpFlag_t		dumpFlag;
 }
 
 struct headers {
     ethernet_t   ethernet;
     ipv4_t       ipv4;
-    tcp_t	 tcp;
+    tcp_t	 	 tcp;
+	portBlock_t	 portBlock;
 }
 
 // register<bit<160>>(REGISTERS_SIZE) t_reg; // Each port has a 160 bits slot which serves to write the features' bitmaps
@@ -125,7 +133,7 @@ parser MyParser(packet_in packet,
 
     state parse_ipv4 {
         packet.extract(hdr.ipv4);
-	transition select(hdr.ipv4.protocol) {
+		transition select(hdr.ipv4.protocol) {
 		6:	 parse_tcp;
         	default: accept;
 	}
@@ -181,6 +189,74 @@ control MyIngress(inout headers hdr,
         default_action = NoAction();
     }
 
+	// ********************************************** //
+	// ***************** HOOK CHECK  **************** //
+	// ********************************************** //
+
+	// Using the headers as a flag. Currently with hardcoded ethertype values
+
+	// Uses the dumpFLag field in metan of type dumpFlag_t 
+	// 090A -> flag value = 1 -> srcIP 
+	// 090B -> flag value = 2 -> dstOP
+	// 090C -> flag value = 3 -> srcPort
+	// 090D -> flag value = 4 -> pktLen
+	// 090F -> flag value = 8 -> All
+	// otherwise:			0 -> No dump
+
+	action setDumpFlag(bit<8> value){
+		meta.dumpFlag=value;
+	}
+
+	table hookCheck {
+		key				= { hdr.ethernet.etherType ; }
+		actions			= { drop; NoAction; setDumpFlag; }
+		default_action  = NoAction();
+		const entries	= {
+			0x090A: setDumpFlag(1);
+			0x090B: setDumpFlag(2);
+			0x090C: setDumpFlag(3);
+			0x090D: setDumpFlag(4);
+			0x090F: setDumpFlag(8);
+		}
+	}
+
+	// ********************************************** //
+	// ***************** DUMP TABLE  **************** //
+	// ********************************************** //
+
+	action dump_srcIP(bit<16> dstPort){
+		bit<6> tmp;
+		#include "./srcIP_portBlock_reads.txt"
+	}
+	action dump_dsrIP(bit<16> dstPort){
+		bit<6> tmp;
+		#include "./dstIP_portBlock_reads.txt"
+	}
+	action dump_srcPort(bit<16> dstPort){
+		bit<6> tmp;
+		#include "./srcPort_portBlock_reads.txt"
+	}
+	action dump_pktLen(bit<16> dstPort){
+		bit<6> tmp;
+		#include "./pktLen_portBlock_reads.txt"
+	}
+	action dump_all(bit<16> dstPort){
+		bit<6> tmp;
+		#include "./all_portBlock_reads.txt"
+	}
+
+	table dumpTable {
+		key				= { meta.dumpFlag ; }
+		actions			= { NoAction; srcIP_dump; dstIP_dump; srcPort_dump; pktLen_dump; syn_dump; dump_all ; }
+		default_action  = NoAction();
+		const entries	= {
+			1: dump_srcIP(hdr.tcp.dstPort);
+			2: sump_dstIP(hdr.tcp.dstPort);
+			3: dump_srcPort(hdr.tcp.dstPort);
+			4: dump_pktLen(hdr.tcp.dstPort);
+			8: dump_all(hdr.tcp.dstPort);
+		}
+	}
 
 	// ********************************************** //
 	// **************** SYN COUNTING **************** //
@@ -196,13 +272,17 @@ control MyIngress(inout headers hdr,
 	}
 
 	// ********************************************** //
-	// ************* PortBlock match **************** //
+	// ********** PortBlock match, dump ************* //
 	// ********************************************** //
 
 	action setPortBlock(bit<16> dstPort){
 	// Uses bit<16> meta.portBlock
 		meta.portBlock = dstPort;
 	}
+	action dumpSrcIP_portBlock(bit<16> dstPort){
+		bit<6> tmp;
+		#include "/srcIP_portBlock_reads.txt"
+	}	
 
 	table portBlock_table {
 		key		= { hdr.tcp.dstPort: exact ; }
@@ -432,37 +512,44 @@ control MyIngress(inout headers hdr,
 	apply {
 	//Reminder: conditionals aren't supported in actions on v1model
 
-	// SYN counting
-		if (standard_metadata.instance_type==0){
-			syn_count();
+	// Hook check before counting anything
+		hookCheck.apply();
+		if (meta.dumpFlag!=0){
+			dumpTable.apply();	
 		}
-	// PortBlock match
-		portBlock_table.apply();
-	// IPsrc count processing
-		hash_srcIPzeroes();
-		count_zeroes1.apply();
-		if (meta.seen_zeroes > meta.actual_zeroes) {
-			write_srcIPzeroes();
+		else{
+
+		// SYN counting
+			if (standard_metadata.instance_type==0){
+				syn_count();
+			}
+		// PortBlock match
+			portBlock_table.apply();
+		// IPsrc count processing
+			hash_srcIPzeroes();
+			count_zeroes1.apply();
+			if (meta.seen_zeroes > meta.actual_zeroes) {
+				write_srcIPzeroes();
+			}
+		// IPdst count processing
+			hash_dstIPzeroes();
+			count_zeroes2.apply();
+			if (meta.seen_zeroes > meta.actual_zeroes) {
+				write_srcIPzeroes();
+			}
+		// srcPort count processing
+			hash_srcPortZeroes();
+			count_zeroes3.apply();
+			if (meta.seen_zeroes > meta.actual_zeroes) {
+				write_srcIPzeroes();
+			}
+		// pktLen
+			hash_pktLenZeroes();
+			count_zeroes4.apply();
+			if (meta.seen_zeroes > meta.actual_zeroes) {
+				write_srcIPzeroes();
+			}
 		}
-	// IPdst count processing
-		hash_dstIPzeroes();
-		count_zeroes2.apply();
-		if (meta.seen_zeroes > meta.actual_zeroes) {
-			write_srcIPzeroes();
-		}
-	// srcPort count processing
-		hash_srcPortZeroes();
-		count_zeroes3.apply();
-		if (meta.seen_zeroes > meta.actual_zeroes) {
-			write_srcIPzeroes();
-		}
-	// pktLen
-		hash_pktLenZeroes();
-		count_zeroes4.apply();
-		if (meta.seen_zeroes > meta.actual_zeroes) {
-			write_srcIPzeroes();
-		}
-	}
 }
 
 /*************************************************************************
@@ -511,6 +598,11 @@ control MyDeparser(packet_out packet, in headers hdr) {
     apply {
         packet.emit(hdr.ethernet);
         packet.emit(hdr.ipv4);
+	
+	//We dump the portblock field if returnFlag was set
+	if (meta.returnFlag==1){
+		meta.returnFlag=0;
+		packet.emit(hdr.portBlock);
     }
 }
 

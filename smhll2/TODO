@@ -10,3 +10,16 @@ Register dump scaled to multiple flows -> need a hook!
 	>need a matching reception scapy script to assemply the packets as they arrive
 	>Could use a bunch of packets instead, one for each port, with a proper script.
 loglog limits estimation?
+
+// Planned first implement:
+	>Header hook using ethertype
+	>Reuses portBlock table. Exempted from counts. 
+		=>need portBlock table & entries_set.pl to contend with it
+	>scapy script to send it, receive it and write it somewhere
+	>decoding script takes a [list of] files to process with it now
+
+If invoked without args, scripts should only write if the file doesn't exist
+If invoked with 1 arg, scripts should write the file with the passed parameter
+If invoked with more than 1 arg, scripts should stop with an error code 
+
+One make option should invoke scripts also
