@@ -1,0 +1,9 @@
+Master TODO for the implem' repo
+
+>On everything
+Cleanup/comment & doc for outsiders
+Script the tests with make
+
+>SMHLL(2)
+	Make 2 versions joined with the top-K flow detection: Hashpipe, Precision. (Add as wanted) 
+

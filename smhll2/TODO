@@ -23,3 +23,28 @@ If invoked with 1 arg, scripts should write the file with the passed parameter
 If invoked with more than 1 arg, scripts should stop with an error code 
 
 One make option should invoke scripts also
+
+setDumpFlag(bit<8> value)
+table hookCheck
+
+
+// Tradeoffs/Design choices notes
+
+> On using a single entry vs many for loglog 
+
+Single entry:
+	+Can be read and dumped easily
+	-Has to be read in its entirety for each update
+Many entries
+	+Fine grained, can be touched up individually during updates
+	-Need to ALL be read individually to dump them
+?? How does register_read work anyway?
+
+> On hardcoding dump_all vs scapy workaround
+
+Hardcoding: 
+	+Simple to use
+	-Implies two instances of the reads necessary in .p4, thus loaded
+scapy workaround
+	+Uses less p4 lines
+	-externalizes a function?
