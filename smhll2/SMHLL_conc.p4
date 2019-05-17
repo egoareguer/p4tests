@@ -246,28 +246,38 @@ control MyIngress(inout headers hdr,
 	// ***************** DUMP TABLE  **************** //
 	// ********************************************** //
 
+	// In essence, we read all entries of the matched portBlock port
+	// Push them all one by one into hdr.portBlock values
+	// Also set the egress port to reflect the packet where it came from
+
 	action dump_srcIP(){
+		standard_metadata.egress_spec = standard_metadata.ingress_port;
 		bit<6> tmp;
 		#include "./srcIP_portBlock_reads.txt"
 	}
 	action dump_dstIP(){
+		standard_metadata.egress_spec = standard_metadata.ingress_port;
 		bit<6> tmp;
 		#include "./dstIP_portBlock_reads.txt"
 	}
 	action dump_srcPort(){
+		standard_metadata.egress_spec = standard_metadata.ingress_port;
 		bit<6> tmp;
 		#include "./srcPort_portBlock_reads.txt"
 	}
 	action dump_pktLen(){
+		standard_metadata.egress_spec = standard_metadata.ingress_port;
 		bit<6> tmp;
 		#include "./pktLen_portBlock_reads.txt"
 	}
 	action dump_syn(){
+		standard_metadata.egress_spec = standard_metadata.ingress_port;
 		bit<32> tmp;
 		syn_count_reg.read(tmp,1);
-		meta.dumpBlock[31:0]=tmp;
+		hdr.dumpBlock.value0[31:0]=tmp;
 	}
 	action dump_all(){
+		standard_metadata.egress_spec = standard_metadata.ingress_port;
 		bit<6> tmp;
 //		#include "./all_portBlock_reads.txt"
 	}

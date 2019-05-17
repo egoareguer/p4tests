@@ -1,3 +1,4 @@
+Syn_count's BROKEN. Why?
 Pseudocode & doc outside of comments
 Everything in the same folder with the makefile to distinguish things 
 Find out why syn_count gets initialized with a non-zero value for no reason
@@ -22,11 +23,11 @@ If invoked without args, scripts should only write if the file doesn't exist
 If invoked with 1 arg, scripts should write the file with the passed parameter
 If invoked with more than 1 arg, scripts should stop with an error code 
 
-One make option should invoke scripts also
+// Scapy notes
 
-setDumpFlag(bit<8> value)
-table hookCheck
-
+Make a CLI to 
+>Send one/a range of packets to one/a range of dst ports
+>Send and receive dump packets for one/a range of the features
 
 // Tradeoffs/Design choices notes
 
