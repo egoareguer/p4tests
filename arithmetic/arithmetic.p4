@@ -180,13 +180,13 @@ control MyIngress(inout headers hdr,
     action operation_xor() {
     send_back(hdr.p4calc.OperandA ^ hdr.p4calc.OperandB);
     }
-	action write_log(bit<10> val) {
-		meta.res=(bit<32>)val;
-	}
-	action write_exp(bit<32> val) {
-		meta.res=val;
-	}
-	table log_val { //It seems like calling the same table twice in a row is not possible with v1model. The compiler fails the attempt with:
+    action write_log(bit<10> val) {
+	meta.res=(bit<32>)val;
+    }
+    action write_exp(bit<32> val) {
+	meta.res=val;
+    }
+    table log_val { 
 	key = { meta.to_log : lpm;
 	}
 	actions = { 
@@ -195,10 +195,10 @@ control MyIngress(inout headers hdr,
 		write_log;
 	}
 	default_action = NoAction();
-		const entries = {
-			 #include "./tables/log_table_32bits_6precision.txt"
-		}
+	const entries = {
+		 #include "./tables/log_table_32bits_6precision.txt"
 	}
+    }
 
 	table log_val2 { 
 		key = { meta.to_log : lpm;

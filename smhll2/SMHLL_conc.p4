@@ -3,13 +3,12 @@
 #include <v1model.p4>
 
 const bit<16> TYPE_IPV4 = 0x800;
-#define REGISTERS_SIZE 256 //Starting with a naive "Monitor EVERYTHING" approach
-			     // 12Mb / 64Kb ~ 200 bits, let's say 32bits per bitmap  
-			     // -> 160bit entries in the register
 
-#define NUM_HLL_REGISTERS 256 //Directly correlates to HLL's error estimation
-#define NUM_N_FLOWS 256 //How many flows we'll have kept
-			  
+#include "./variables/variables.p4"
+//variables.p4 defines:
+// 	>how many flow entries get HLL data structures allocated to them
+//	>how wide said data structures are
+//	>meta.index bit width to avoid entries block overlap
 
 /* We want, aggregated by dst port, lightweight collection tables of the following features:
 	#Unique src IPs
@@ -110,10 +109,10 @@ struct headers {
 
 // register<bit<160>>(REGISTERS_SIZE) t_reg; // Each port has a 160 bits slot which serves to write the features' bitmaps
 // In light of the reading problems past 2^63, we separate them for now
-register<bit<6>>(REGISTERS_SIZE*NUM_HLL_REGISTERS) srcIP_masterReg;
-register<bit<6>>(REGISTERS_SIZE*NUM_HLL_REGISTERS) dstIP_masterReg;
-register<bit<6>>(REGISTERS_SIZE*NUM_HLL_REGISTERS) srcPort_masterReg;
-register<bit<6>>(REGISTERS_SIZE*NUM_HLL_REGISTERS) pktLen_masterReg;
+register<bit<6>>(NUM_N_FLOWS*NUM_HLL_REGISTERS) srcIP_masterReg;
+register<bit<6>>(NUM_N_FLOWS*NUM_HLL_REGISTERS) dstIP_masterReg;
+register<bit<6>>(NUM_N_FLOWS*NUM_HLL_REGISTERS) srcPort_masterReg;
+register<bit<6>>(NUM_N_FLOWS*NUM_HLL_REGISTERS) pktLen_masterReg;
 register<bit<32>>(2) syn_count_reg;
 
 
@@ -159,7 +158,6 @@ parser MyParser(packet_in packet,
 
 	state parse_dump {
 		packet.extract(hdr.ipv4);
-		packet.extract(hdr.tcp);
 		packet.extract(hdr.dumpBlock);
 		transition accept;
 	}
@@ -183,9 +181,7 @@ control MyVerifyChecksum(inout headers hdr, inout customMetadata_t meta) {
 control MyIngress(inout headers hdr,
                   inout customMetadata_t meta,
                   inout standard_metadata_t standard_metadata
-    ) {
-
-
+) {
     // ***** standard fare ipv4 forwarding *****
     action drop() {
         mark_to_drop();
@@ -251,33 +247,27 @@ control MyIngress(inout headers hdr,
 	// Also set the egress port to reflect the packet where it came from
 
 	action dump_srcIP(){
-		standard_metadata.egress_spec = standard_metadata.ingress_port;
 		bit<6> tmp;
 		#include "./srcIP_portBlock_reads.txt"
 	}
 	action dump_dstIP(){
-		standard_metadata.egress_spec = standard_metadata.ingress_port;
 		bit<6> tmp;
 		#include "./dstIP_portBlock_reads.txt"
 	}
 	action dump_srcPort(){
-		standard_metadata.egress_spec = standard_metadata.ingress_port;
 		bit<6> tmp;
 		#include "./srcPort_portBlock_reads.txt"
 	}
 	action dump_pktLen(){
-		standard_metadata.egress_spec = standard_metadata.ingress_port;
 		bit<6> tmp;
 		#include "./pktLen_portBlock_reads.txt"
 	}
 	action dump_syn(){
-		standard_metadata.egress_spec = standard_metadata.ingress_port;
 		bit<32> tmp;
 		syn_count_reg.read(tmp,1);
 		hdr.dumpBlock.value0[31:0]=tmp;
 	}
 	action dump_all(){
-		standard_metadata.egress_spec = standard_metadata.ingress_port;
 		bit<6> tmp;
 //		#include "./all_portBlock_reads.txt"
 	}
@@ -304,7 +294,7 @@ control MyIngress(inout headers hdr,
 	//	syn_count_reg
 	//	v1model's standard_metadata.instance_type
 		bit<32> tmp;
-		syn_count_reg.read(tmp, 0);
+		syn_count_reg.read(tmp, 1);
 		syn_count_reg.write(1,tmp+1);
 	}
 
@@ -364,9 +354,9 @@ control MyIngress(inout headers hdr,
 				{ 3w5, hdr.ipv4.srcAddr, 7w10 },
 				32w0b11111111111111111111111111111111
 		);
-		meta.index   = meta.hash[7:0];
+		meta.index[INDEX_WIDTH:0]   = meta.hash[INDEX_WIDTH:0];
 		meta.remnant = meta.hash2++meta.hash[31:8];
-		meta.address = (bit<32>)meta.index+((bit<32>)256*(bit<32>)meta.portBlock);
+		meta.address = (bit<32>)meta.index+((bit<32>)NUM_HLL_REGISTERS*(bit<32>)meta.portBlock);
 		srcIP_masterReg.read(meta.actual_zeroes, (bit<32>)meta.address);
 	}
 
@@ -392,9 +382,9 @@ control MyIngress(inout headers hdr,
 				{ 3w5, hdr.ipv4.dstAddr, 7w10 },
 				32w0b11111111111111111111111111111111
 		);
-		meta.index   = meta.hash[7:0];
+		meta.index[INDEX_WIDTH:0]   = meta.hash[INDEX_WIDTH:0];
 		meta.remnant = meta.hash2++meta.hash[31:8];
-		meta.address = (bit<32>)meta.index+((bit<32>)256*(bit<32>)meta.portBlock);
+		meta.address = (bit<32>)meta.index+((bit<32>)NUM_HLL_REGISTERS*(bit<32>)meta.portBlock);
 		dstIP_masterReg.read(meta.actual_zeroes, (bit<32>)meta.address);
 	}
 	action hash_srcPortZeroes() { 
@@ -419,9 +409,9 @@ control MyIngress(inout headers hdr,
 				{ 3w5, hdr.tcp.srcPort, 7w10 },
 				32w0b11111111111111111111111111111111
 		);
-		meta.index   = meta.hash[7:0];
+		meta.index[INDEX_WIDTH:0]   = meta.hash[INDEX_WIDTH:0];
 		meta.remnant = meta.hash2++meta.hash[31:8];
-		meta.address = (bit<32>)meta.index+((bit<32>)256*(bit<32>)meta.portBlock);
+		meta.address = (bit<32>)meta.index+((bit<32>)NUM_HLL_REGISTERS*(bit<32>)meta.portBlock);
 		srcPort_masterReg.read(meta.actual_zeroes, (bit<32>)meta.address);
 	}
 
@@ -447,14 +437,14 @@ control MyIngress(inout headers hdr,
 				{ 3w5, standard_metadata.packet_length, 7w10 },
 				32w0b11111111111111111111111111111111
 		);
-		meta.index   = meta.hash[7:0];
+		meta.index[INDEX_WIDTH:0]   = meta.hash[INDEX_WIDTH:0];
 		meta.remnant = meta.hash2++meta.hash[31:8];
-		meta.address = (bit<32>)meta.index+((bit<32>)256*(bit<32>)meta.portBlock);
+		meta.address = (bit<32>)meta.index+((bit<32>)NUM_HLL_REGISTERS*(bit<32>)meta.portBlock);
 		pktLen_masterReg.read(meta.actual_zeroes, (bit<32>)meta.address);
 	}
 
 	// ********************************************** //
-    // *************** Counting Zeroes ************** //
+        // *************** Counting Zeroes ************** //
 	// ********************************************** //
 
 	// One restrictions we need to fulfil is :
@@ -568,20 +558,23 @@ control MyIngress(inout headers hdr,
 			hash_dstIPzeroes();
 			count_zeroes2.apply();
 			if (meta.seen_zeroes > meta.actual_zeroes) {
-				write_srcIPzeroes();
+				write_dstIPzeroes();
 			}
 		// srcPort count processing
 			hash_srcPortZeroes();
 			count_zeroes3.apply();
 			if (meta.seen_zeroes > meta.actual_zeroes) {
-				write_srcIPzeroes();
+				write_srcPortZeroes();
 			}
 		// pktLen
 			hash_pktLenZeroes();
 			count_zeroes4.apply();
 			if (meta.seen_zeroes > meta.actual_zeroes) {
-				write_srcIPzeroes();
+				write_pktLenZeroes();
 			}
+		}
+		if (hdr.ipv4.isValid()) {
+			ipv4_lpm.apply();
 		}
 	}
 }
@@ -597,7 +590,33 @@ control MyEgress(inout headers hdr,
         mark_to_drop();
     }	
 	
-    apply { }
+	table dbug_table {
+		key = { hdr.ethernet.dstAddr: exact;
+				hdr.ipv4.srcAddr: exact; 
+				hdr.ipv4.dstAddr: exact;
+				hdr.tcp.srcPort: exact; 
+				hdr.tcp.dstPort: exact;
+				hdr.dumpBlock.value0[31:0]: exact; 
+				hdr.dumpBlock.value1[31:0]: exact; 
+				hdr.dumpBlock.value2[31:0]: exact; 
+				hdr.dumpBlock.value3[31:0]: exact; 
+				hdr.dumpBlock.value4[31:0]: exact; 
+		}
+		actions = { NoAction ; }
+		default_action = NoAction();
+	}
+
+	action send_back(){
+		bit<48> tmp;
+		tmp=hdr.ethernet.dstAddr;
+		hdr.ethernet.dstAddr = hdr.ethernet.srcAddr;
+		hdr.ethernet.srcAddr = tmp;
+		standard_metadata.egress_spec = standard_metadata.ingress_port;
+	}
+    apply {
+		send_back();
+		dbug_table.apply();	
+	}
 }
 
 /*************************************************************************
