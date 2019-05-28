@@ -32,7 +32,7 @@ def main():
 # //TODO There should be consistant HH and Bursty HHs
 
     keys=[]
-    for i in range (24000):
+    for i in range (54000):
 #An IP is 32 bits, a port is 16
 	port=str(random.randint(1024, 64444))
 	ip=str(random.randint(1,254))+'.'+str(random.randint(1,254))+'.'+str(random.randint(1,254))+'.'+str(random.randint(1,254))
