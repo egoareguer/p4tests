@@ -25,17 +25,16 @@ def get_if():
     return iface
 
 def set_sip(N):
-#    return (str(N/2**24)+'.'+str(N%2**24/2**16)+'.'+str(N%2**16/256)+'.'+str(N%256))
-    return(str(random.randint(1,254))+'.'+str(random.randint(1,254))+'.'+str(random.randint(1,254))+'.'+str(random.randint(1,254)))
-    
+    return (str(N/2**24)+'.'+str(N%2**24/2**16)+'.'+str(N%2**16/256)+'.'+str(N%256))
+
 def set_dip(N):
     return (str(N%256)+'.'+str(N%2**16/256)+'.'+str(N%2**24/2**16)+'.'+str(N/2**24))
 
 
 def set_sport(N):
+#    print (str((000+N)%64999))
 #    return(str((000+N)%64999))
-    return(random.randint(1,64999))
-    
+     return(random.randint(0, 64999))
 def main():
     N_PKTS = int(sys.argv[1])
     iface = get_if()
@@ -53,16 +52,14 @@ def main():
     for i in range(len(keys)):
         if (i%200==0):
             print(str(i)+"th packet sent", time.time()-clock)
-                
-	
+        # print(str(i)+"th packet")
+	#print(keys[i])
 	pkt = Ether(src=get_if_hwaddr(iface),dst='ff:ff:ff:ff:ff:ff')
 	pkt = pkt / IP(dst=keys[i][2],src=keys[i][3]) / TCP(sport=int(keys[i][0]), dport=int(keys[i][1]))  / keys[i][3] # sys.argv[2]
 	sendp(pkt, iface=iface, verbose=False)
-        if (i%100==0):
-            sport=keys[i][0]
-            sip=keys[i][3]
-            dip=keys[i][2]
-            print("sip, dip, sport:",sip,dip,sport)
+        if (i%50==0):
+            print(int(keys[i][0]))
+
 
 if __name__ == '__main__':
     main()

@@ -170,10 +170,10 @@ control MyIngress(inout headers hdr,
 
     table debug_table { // The only purpose of this table is to make it spit its key in the logs
     key = { meta.key	: exact;
-	    meta.hash1	: exact;
-	    meta.hash2	: exact;
-	    meta.index	: exact;
-	    meta.remnant: exact;
+			meta.hash1	: exact;
+			meta.hash2	: exact;
+			meta.index	: exact;
+			meta.remnant: exact;
 	  }
     actions = {
 	NoAction;

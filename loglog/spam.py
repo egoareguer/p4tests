@@ -43,7 +43,7 @@ def main():
     t=time.time()
     for i in range(len(keys)):
 	pkt = Ether(src=get_if_hwaddr(iface),dst='ff:ff:ff:ff:ff:ff')
-	pkt = pkt / IP(dst=addr,src=keys[i][0]) / TCP(dport=int(keys[i][1]), sport=random.randint(49152,65535)) / sys.argv[2]
+	pkt = pkt / IP(dst=addr,src=keys[i][0]) / TCP(dport=int(keys[i][1]), sport=random.randint(152,65535)) / sys.argv[2]
 	sendp(pkt, iface=iface, verbose=False)
 	if(i%1000 == 0):
 		print(i/1000, time.time()-t)
