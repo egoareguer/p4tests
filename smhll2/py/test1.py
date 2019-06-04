@@ -26,12 +26,23 @@ def get_if():
 
 def set_sip(N):
 #    return (str(N/2**24)+'.'+str(N%2**24/2**16)+'.'+str(N%2**16/256)+'.'+str(N%256))
-    return(str(random.randint(1,254))+'.'+str(random.randint(1,254))+'.'+str(random.randint(1,254))+'.'+str(random.randint(1,254)))
+    b1=random.randint(1,255)
+    b2=random.randint(1,255)
+    b3=random.randint(1,255)
+    b4=random.randint(1,255)
+    res=str(b1)+'.'+str(b2)+'.'+str(b3)+'.'+str(b4)
+    return(res)    
+#    return(str(random.randint(1,254))+'.'+str(random.randint(1,254))+'.'+str(random.randint(1,254))+'.'+str(random.randint(1,254)))
     
 def set_dip(N):
-    return (str(N%256)+'.'+str(N%2**16/256)+'.'+str(N%2**24/2**16)+'.'+str(N/2**24))
-
-
+#    return (str(N%256)+'.'+str(N%2**16/256)+'.'+str(N%2**24/2**16)+'.'+str(N/2**24))
+    b1=random.randint(1,255)
+    b2=random.randint(1,255)
+    b3=random.randint(1,255)
+    b4=random.randint(1,255)
+    res=str(b1)+'.'+str(b2)+'.'+str(b3)+'.'+str(b4)
+    return(res)
+    
 def set_sport(N):
 #    return(str((000+N)%64999))
     return(random.randint(1,64999))

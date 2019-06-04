@@ -33,7 +33,7 @@ typedef bit<16> portBlock_t;
 typedef bit<32> address_t;
 typedef bit<32> hash_t;
 typedef bit<56> remnant_t;
-typedef bit<8>  index_t;
+typedef bit<16>  index_t;
 typedef bit<6>  short_byte_t;
 typedef bit<8>  dumpFlag_t;
 
@@ -248,19 +248,19 @@ control MyIngress(inout headers hdr,
 
 	action dump_srcIP(){
 		bit<6> tmp;
-		#include "./srcIP_portBlock_reads.txt"
+		// #include "./srcIP_portBlock_reads.txt"
 	}
 	action dump_dstIP(){
 		bit<6> tmp;
-		#include "./dstIP_portBlock_reads.txt"
+		// #include "./dstIP_portBlock_reads.txt"
 	}
 	action dump_srcPort(){
 		bit<6> tmp;
-		#include "./srcPort_portBlock_reads.txt"
+		// #include "./srcPort_portBlock_reads.txt"
 	}
 	action dump_pktLen(){
 		bit<6> tmp;
-		#include "./pktLen_portBlock_reads.txt"
+		// #include "./pktLen_portBlock_reads.txt"
 	}
 	action dump_syn(){
 		bit<32> tmp;
@@ -345,13 +345,13 @@ control MyIngress(inout headers hdr,
 		hash(meta.hash,
 				HashAlgorithm.crc32_custom,
 				32w0,
-				{ 5w3, hdr.ipv4.srcAddr, 6w6 },
+				{ 5w3, hdr.ipv4.srcAddr[10:0], 6w6, hdr.ipv4.srcAddr[20:11], 10w277, hdr.ipv4.srcAddr[31:21] },
 				32w0b11111111111111111111111111111111
 		);
 		hash(meta.hash2,
 				HashAlgorithm.crc32_custom,
 				32w0,
-				{ 3w5, hdr.ipv4.srcAddr, 7w10 },
+				{ 3w5, hdr.ipv4.srcAddr[10:0], 7w10, hdr.ipv4.srcAddr[20:11], 9w152, hdr.ipv4.srcAddr[31:21] },
 				32w0b11111111111111111111111111111111
 		);
 		meta.index[INDEX_WIDTH:0]   = meta.hash[INDEX_WIDTH:0];
@@ -450,7 +450,7 @@ control MyIngress(inout headers hdr,
 	// One restrictions we need to fulfil is :
 	// for a single pipeline runthrough, a given table
 	// may be called _ONCE_
-	// Therefore, to use is four times we need four instances of it
+	// Therefore, to use it four times we need four instances of it
 
 	action save_seenZeroes(short_byte_t value){
 	// called by count_zeroes table
