@@ -14,6 +14,10 @@ const bit<4> REGISTER_SIZE = 0x6; //6 bits is enough for up to 64, we won't have
 //	     Or conditional in actions themselves
 //	     Bit indexes must be compile time constant
 
+//Used to set m*m*alpha 
+#include "variables/variables.txt"
+
+
 /*************************************************************************
 *********************** H E A D E R S  ***********************************
 *************************************************************************/
@@ -83,8 +87,9 @@ struct headers {
     tcp_t 	 tcp;
 }
 
-register<bit<6>>(256) register1; //256 registers of size 6 are equivalent to a single one of size 256 whose slots are 6 bits
+register<bit<6>>(NUMBER_OF_BUCKETS) register1; //256 registers of size 6 are equivalent to a single one of size 256 whose slots are 6 bits
 				 //2^6=64, so we're good until 64 zeroes 
+register<bit<64>>(1) estimate_reg;
 
 /*************************************************************************
 *********************** P A R S E R  ***********************************
@@ -167,6 +172,18 @@ control MyIngress(inout headers hdr,
     action save_zeroes(zeroes_t value ) {
 	    meta.index_zeroes = value ;
     }
+
+	action estimate_action() { 
+		//Estimate needs to: 
+		//	>for each of NUMBER_OF_BUCKETS entries
+		//  	>read entry
+		//		>take the invert log (a bit shift with a fixed point notation
+		//		>add it to sum
+		//	>save ESTIMATE_FACTOR * sum somewhere (or just sum)
+		bit<64> sum ;
+		sum=64w0b0;
+	//	#include "estimate_256.txt";
+	}		
 
     table debug_table { // The only purpose of this table is to make it spit its key in the logs
     key = { meta.key	: exact;
@@ -282,14 +299,15 @@ control MyIngress(inout headers hdr,
         if (hdr.ipv4.isValid()) {
             ipv4_lpm.apply();
         }
-	if (hdr.tcp.isValid()) {
-	    initiate();
-	    debug_table.apply();
-	    zeroes_lpm.apply();
-	    if (meta.index_zeroes > meta.actual_zeroes ) {
-		    push_zeroes();
-	    }
-	}
+		if (hdr.tcp.isValid()) {
+			initiate();
+			debug_table.apply();
+			zeroes_lpm.apply();
+			if (meta.index_zeroes > meta.actual_zeroes ) {
+				push_zeroes();
+			}
+		}
+		estimate_action();
     }
 }
 

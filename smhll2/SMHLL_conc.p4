@@ -4,11 +4,12 @@
 
 const bit<16> TYPE_IPV4 = 0x800;
 
-#include "./variables/variables.p4"
+#include "./src/constants.p4"
 //variables.p4 defines:
 // 	>how many flow entries get HLL data structures allocated to them
 //	>how wide said data structures are
 //	>meta.index bit width to avoid entries block overlap
+//  >The dump codes as TYPE_DUMP_[FEAT]
 
 /* We want, aggregated by dst port, lightweight collection tables of the following features:
 	#Unique src IPs
@@ -28,6 +29,8 @@ typedef bit<9>  egressSpec_t;
 typedef bit<48> macAddr_t;
 typedef bit<32> ip4Addr_t;
 
+#include "./src/headers.p4"
+
 //Types used by HLL + SplitMerge
 typedef bit<16> portBlock_t;
 typedef bit<32> address_t;
@@ -36,54 +39,7 @@ typedef bit<56> remnant_t;
 typedef bit<16>  index_t;
 typedef bit<6>  short_byte_t;
 typedef bit<8>  dumpFlag_t;
-
 typedef bit<16> recirc_key_t;
-
-
-header ethernet_t {
-    macAddr_t dstAddr;
-    macAddr_t srcAddr;
-    bit<16>   etherType;
-}
-
-header ipv4_t {
-    bit<4>    version;
-    bit<4>    ihl;
-    bit<8>    diffserv;
-    bit<16>   totalLen;
-    bit<16>   identification;
-    bit<3>    flags;
-    bit<13>   fragOffset;
-    bit<8>    ttl;
-    bit<8>    protocol;
-    bit<16>   hdrChecksum;
-    ip4Addr_t srcAddr;
-    ip4Addr_t dstAddr;
-}
-
-header tcp_t {
-	bit<16> srcPort;
-	bit<16> dstPort;
-	bit<32> seqNo;
-	bit<32> ackNo;
-	bit<4> dataOffset;
-	bit<3> res;
-	bit<3> ecn;
-	bit<6> ctrl;
-	bit<16> window;
-	bit<16> checksum;
-	bit<16> urgentPtr;
-}
-
-header dumpBlock_t {
-	//We assign those with bit slicing, which is limited to a 256 wide shift at once on this target
-	bit<252> value0;
-	bit<252> value1;
-	bit<252> value2;
-	bit<252> value3;
-	bit<252> value4;
-	bit<252> value5;
-}
 
 struct customMetadata_t {
 	hash_t			hash;
@@ -133,12 +89,7 @@ parser MyParser(packet_in packet,
         packet.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
             TYPE_IPV4: parse_ipv4;
-			0x90A: parse_dump;
-			0x90B: parse_dump;
-			0x90C: parse_dump;
-			0x90D: parse_dump;
-			0x90E: parse_dump;
-			0x90F: parse_dump;
+			P4DUMP_ETYPE: parse_dump;
 			default: accept;
         }
     }
@@ -248,19 +199,19 @@ control MyIngress(inout headers hdr,
 
 	action dump_srcIP(){
 		bit<6> tmp;
-		// #include "./srcIP_portBlock_reads.txt"
+		 #include "./srcIP_portBlock_reads.txt"
 	}
 	action dump_dstIP(){
 		bit<6> tmp;
-		// #include "./dstIP_portBlock_reads.txt"
+		#include "./dstIP_portBlock_reads.txt"
 	}
 	action dump_srcPort(){
 		bit<6> tmp;
-		// #include "./srcPort_portBlock_reads.txt"
+		 #include "./srcPort_portBlock_reads.txt"
 	}
 	action dump_pktLen(){
 		bit<6> tmp;
-		// #include "./pktLen_portBlock_reads.txt"
+		 #include "./pktLen_portBlock_reads.txt"
 	}
 	action dump_syn(){
 		bit<32> tmp;

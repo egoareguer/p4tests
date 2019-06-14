@@ -1,0 +1,8 @@
+// m amount of bits used to pick a bucket
+#define BUCKET_BITS 8
+// Amount of bucket = 2^m
+#define NUMBER_OF_BUCKETS 256
+// Factor = alpha*m*m 
+#define ESTIMATE_FACTOR 45000
+//Filename of the actions to read all entries to estimate cardinality
+#define ESTIMATE_ACTIONS_FILE "estimate_256.txt"

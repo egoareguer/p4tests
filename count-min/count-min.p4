@@ -214,7 +214,8 @@ control MyIngress(inout headers hdr,
 			//update.apply(); //Standard update, i.e increment every counter without second thought
 			
 			//Alternative: conservative update block
-			/*Structure:    -> read counters 		
+			/*Structure:    
+			  		-> read counters 		
 					-> calculate their min 
 					-> increment those whose value == min
 			*/
