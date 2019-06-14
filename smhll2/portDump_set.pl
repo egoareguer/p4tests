@@ -16,7 +16,7 @@ my @prefixes=("srcIP","dstIP","srcPort","pktLen");
 # feature's entry read into tmp -> pushed into appropriate slot 
 
 for my $prefix (@prefixes){
-	open (my $file, ">", "./".$prefix."_portBlock_reads.txt") or die "Can't open output file: $!";
+	open (my $file, ">", "./action_blocks/".$prefix."_portBlock_reads.txt") or die "Can't open output file: $!";
 	for (my $n=0; $n<$N; $n++){
 		$index=($n*6)%252;
 		$end=$index+5;

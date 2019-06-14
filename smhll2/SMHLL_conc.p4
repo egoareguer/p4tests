@@ -2,10 +2,7 @@
 #include <core.p4>
 #include <v1model.p4>
 
-const bit<16> TYPE_IPV4 = 0x800;
-
 #include "./src/constants.p4"
-//variables.p4 defines:
 // 	>how many flow entries get HLL data structures allocated to them
 //	>how wide said data structures are
 //	>meta.index bit width to avoid entries block overlap
@@ -24,23 +21,9 @@ const bit<16> TYPE_IPV4 = 0x800;
 /*************************************************************************
 *********************** H E A D E R S  ***********************************
 *************************************************************************/
-
-typedef bit<9>  egressSpec_t;
-typedef bit<48> macAddr_t;
-typedef bit<32> ip4Addr_t;
-
 #include "./src/headers.p4"
 
 //Types used by HLL + SplitMerge
-typedef bit<16> portBlock_t;
-typedef bit<32> address_t;
-typedef bit<32> hash_t;
-typedef bit<56> remnant_t;
-typedef bit<16>  index_t;
-typedef bit<6>  short_byte_t;
-typedef bit<8>  dumpFlag_t;
-typedef bit<16> recirc_key_t;
-
 struct customMetadata_t {
 	hash_t			hash;
 	hash_t			hash2;
@@ -60,6 +43,7 @@ struct headers {
     ethernet_t   ethernet;
     ipv4_t       ipv4;
     tcp_t	 	 tcp;
+	p4dump_t	 p4dump;
 	dumpBlock_t	 dumpBlock;
 }
 
@@ -199,19 +183,19 @@ control MyIngress(inout headers hdr,
 
 	action dump_srcIP(){
 		bit<6> tmp;
-		 #include "./srcIP_portBlock_reads.txt"
+		 #include "./action_blocks/srcIP_portBlock_reads.txt"
 	}
 	action dump_dstIP(){
 		bit<6> tmp;
-		#include "./dstIP_portBlock_reads.txt"
+		#include "./action_blocks/dstIP_portBlock_reads.txt"
 	}
 	action dump_srcPort(){
 		bit<6> tmp;
-		 #include "./srcPort_portBlock_reads.txt"
+		 #include "./action_blocks/srcPort_portBlock_reads.txt"
 	}
 	action dump_pktLen(){
 		bit<6> tmp;
-		 #include "./pktLen_portBlock_reads.txt"
+		 #include "./action_blocks/pktLen_portBlock_reads.txt"
 	}
 	action dump_syn(){
 		bit<32> tmp;
@@ -220,7 +204,7 @@ control MyIngress(inout headers hdr,
 	}
 	action dump_all(){
 		bit<6> tmp;
-//		#include "./all_portBlock_reads.txt"
+//		#include "./action_blocks/all_portBlock_reads.txt"
 	}
 
 	table dumpTable {
@@ -264,7 +248,7 @@ control MyIngress(inout headers hdr,
 		size	= NUM_N_FLOWS ; 
 	    default_action = NoAction();
 		const entries = {
-			#include "portBlock_entries.txt"
+			#include "./tables/portBlock_entries.txt"
 		}
 	}	
 
