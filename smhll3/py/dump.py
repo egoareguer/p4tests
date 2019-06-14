@@ -11,9 +11,6 @@ from scapy.all import Packet, bind_layers
 from scapy.all import StrFixedLenField, XByteField, IntField
 from scapy.all import Ether, IP, UDP, TCP
 
-# This version of dump.py is based on calc.py's approach: use a special 
-# header to trigger specific actions
-
 class P4dump(Packet):
     name = "P4dump"
     #Intfields are four bytes wide
@@ -22,17 +19,9 @@ class P4dump(Packet):
                     StrFixedLenField("Dump", "D", length=1),
                     XByteField("version", 0x01),
                     IntField("dump_code", 0),
-                    IntField("dump_port", 0)]
+                    IntField("dump_port", 0),
+                    StrFixedLenField("DumpBlock_1", "", length=256)]
 bind_layers(Ether, P4dump, type=0x1235)
-
-class P4dumpBlocks(Packet):
-    name = "dumpBlock"
-    fields_desc = [ StrFixedLenField("block0","0",length=256),
-                    StrFixedLenField("block1","0",length=256),
-                    StrFixedLenField("block2","0",length=256),
-                    StrFixedLenField("block3","0",length=256),
-                    StrFixedLenField("block4","0",length=256),
-                    StrFixedLenField("block5","0",length=192)] #5*256+192 + P4dump + Ether -> 1486 bytes
 
  # a P4DUMP packet looks like this: 
  #
@@ -44,15 +33,13 @@ class P4dumpBlocks(Packet):
  # +----------------+----------------+----------------+---------------+
  # |                             Dump port                            |
  # +----------------+----------------+----------------+---------------+
-
- # It's followed by several dumpblocks, 256 bits each
- 
- # +----------------+----------------+----------------+---------------+
  # |                             Dumpblock                            |
  # +----------------+----------------+----------------+---------------+
  # |						 	 Dumpblock    |
  # +----------------+----------------+----------------+---------------+
- #								   (...)
+ # |								      |
+ # |                               (...)     			      |
+ # |								      |
  #
  # P is an ASCII Letter 'P' (0x50)
  # 4 is an ASCII Letter '4' (0x34)
@@ -66,6 +53,13 @@ class P4dumpBlocks(Packet):
 
 class NumParseError(Exception):
     pass
+
+def code_parser(s):
+    pattern = "^\s*(231[4-9])\s*"
+    match = re.match(pattern, s)
+    if (match | s=="2320"):
+        return(match.group(1))
+    raise NumParseError('Expected number literal in [|2314, 2320|].')
 
 def get_if():
     ifs=get_if_list()
@@ -116,11 +110,12 @@ def main():
     iface = get_if()
     l=1048*"a"
     print "sending on interface %s" % (iface)
-    pkt = Ether(src=get_if_hwaddr(iface), dst='ff:ff:ff:ff:ff:ff', type=1235) / P4dump(dump_code=code, dump_port=dport) / l
+    pkt =  Ether(src=get_if_hwaddr(iface), dst='ff:ff:ff:ff:ff:ff', type=int(sys.argv[2])) / IP(dst=dd, src=ds) / TCP(dport=int(sys.argv[1]), sport=random.randint(49152,65535))  / l
     pkt.show()
-    pkt2 = Ether(src=get_if_hwaddr(iface), dst='ff:ff:ff:ff:ff:ff', type=1235) / P4dump(dump_code=code, dump_port=dport) / P4dumpBlocks()
-    pkt2.show()
-    srp1(pkt2, iface=iface, verbose=False)
+    pkt2 = Ether(src=get_if_hwaddr(iface), dst='ff:ff:ff:ff:ff:ff', type=1235) / P4dump(dump_code=code, dump_port=dport) / l
+    # pkt2.show()
+    
+    srp1(pkt, iface=iface, verbose=False)
 
 if __name__ == '__main__':
     main()

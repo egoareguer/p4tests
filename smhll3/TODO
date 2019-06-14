@@ -1,0 +1,51 @@
+Syn_count's BROKEN. Why?
+Pseudocode & doc outside of comments
+Everything in the same folder with the makefile to distinguish things 
+Find out why syn_count gets initialized with a non-zero value for no reason
+
+Estimate scaled to multiple flows
+
+Register dump scaled to multiple flows -> need a hook!
+	>use the bos parser loop ? or recirculate 
+	>use a given etherType flag to trigger dump
+	>need a matching reception scapy script to assemply the packets as they arrive
+	>Could use a bunch of packets instead, one for each port, with a proper script.
+loglog limits estimation?
+
+// Planned first implement:
+	>Header hook using ethertype
+	>Reuses portBlock table. Exempted from counts. 
+		=>need portBlock table & entries_set.pl to contend with it
+	>scapy script to send it, receive it and write it somewhere
+	>decoding script takes a [list of] files to process with it now
+
+If invoked without args, scripts should only write if the file doesn't exist
+If invoked with 1 arg, scripts should write the file with the passed parameter
+If invoked with more than 1 arg, scripts should stop with an error code 
+
+// Scapy notes
+
+Make a CLI to 
+>Send one/a range of packets to one/a range of dst ports
+>Send and receive dump packets for one/a range of the features
+
+// Tradeoffs/Design choices notes
+
+> On using a single entry vs many for loglog 
+
+Single entry:
+	+Can be read and dumped easily
+	-Has to be read in its entirety for each update
+Many entries
+	+Fine grained, can be touched up individually during updates
+	-Need to ALL be read individually to dump them
+?? How does register_read work anyway?
+
+> On hardcoding dump_all vs scapy workaround
+
+Hardcoding: 
+	+Simple to use
+	-Implies two instances of the reads necessary in .p4, thus loaded
+scapy workaround
+	+Uses less p4 lines
+	-externalizes a function?

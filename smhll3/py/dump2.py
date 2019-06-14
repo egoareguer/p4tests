@@ -32,7 +32,7 @@ class P4dumpBlocks(Packet):
                     StrFixedLenField("block2","0",length=256),
                     StrFixedLenField("block3","0",length=256),
                     StrFixedLenField("block4","0",length=256),
-                    StrFixedLenField("block5","0",length=192)] #5*256+192 + P4dump + Ether -> 1486 bytes
+                    StrFixedLenField("block5","0",length=192)] #5*256+192 + P4dump + Ether -> 1498 bytes
 
  # a P4DUMP packet looks like this: 
  #
