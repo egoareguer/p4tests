@@ -3,11 +3,14 @@
 # Writes table for: srcIP_dump, dstIP_dump; srcPort_dump; pktLen_dump; syn_dump; dump_all
 # Filenames: srcIP_portBlock_reads.txt, dstIP_, srcPort_, pktLen_, all_
 
+# N is the parameter that fixes how many bit<6> entries are read total in the table 
+# 250 for block0-5
+
 #Do we assume separate hooks for each feature?
 use strict;
 use warnings;
 
-my $N=250;
+my $N=32;
 my $index=0;
 my $end=5;
 my @prefixes=("srcIP","dstIP","srcPort","pktLen");

@@ -28,7 +28,7 @@ class NumParseError(Exception):
     pass
 
 class OpParseError(Exception):
-20    pass
+    pass
 
 class Token:
     def __init__(self,type,value = None):
@@ -77,8 +77,7 @@ def main():
                                               operand_a=int(ts[0].value),
                                               operand_b=int(ts[2].value))
             pkt = pkt/' '
-
-#            pkt.show()
+            pkt.show()
             resp = srp1(pkt, iface=iface, timeout=1, verbose=False)
             if resp:
                 p4calc=resp[P4calc]

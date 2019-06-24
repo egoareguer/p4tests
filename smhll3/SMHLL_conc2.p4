@@ -143,6 +143,13 @@ control MyIngress(inout headers hdr,
         size = 1024;
         default_action = NoAction();
     }
+	action send_back(){
+		bit<48> tmp;
+		tmp = hdr.ethernet.dstAddr;
+		hdr.ethernet.dstAddr = hdr.ethernet.srcAddr;
+		hdr.ethernet.srcAddr = tmp;
+		standard_metadata.egress_spec = standard_metadata.ingress_port;
+	}
 
 	// ********************************************** //
 	// ***************** HOOK CHECK  **************** //
@@ -195,7 +202,7 @@ control MyIngress(inout headers hdr,
 	}
 	action dump_srcPort(){
 		bit<6> tmp;
-		 #include "./action_blocks/srcPort_portBlock_reads.txt"
+		  #include "./action_blocks/srcPort_portBlock_reads.txt"
 	}
 	action dump_pktLen(){
 		bit<6> tmp;
@@ -383,7 +390,7 @@ control MyIngress(inout headers hdr,
 	}
 
 	// ********************************************** //
-        // *************** Counting Zeroes ************** //
+	// *************** Counting Zeroes ************** //
 	// ********************************************** //
 
 	// One restrictions we need to fulfil is :
@@ -472,15 +479,15 @@ control MyIngress(inout headers hdr,
 	// ********************************************** //
 
 	apply {
-	//Reminder: conditionals aren't supported in actions on v1model
+	//Reminder: in v1model conditionals aren't supported in actions 
 
 	// Hook check before counting anything
 		hookCheck.apply();
 		if (meta.dumpFlag!=0){
 			dumpTable.apply();	
+			send_back();
 		}
 		else{
-
 		// SYN counting
 			if (standard_metadata.instance_type==0){
 				syn_count();
@@ -512,9 +519,6 @@ control MyIngress(inout headers hdr,
 				write_pktLenZeroes();
 			}
 		}
-		if (hdr.ipv4.isValid()) {
-			ipv4_lpm.apply();
-		}
 	}
 }
 
@@ -528,7 +532,6 @@ control MyEgress(inout headers hdr,
 	action drop() {
         mark_to_drop();
     }	
-	
 	table dbug_table {
 		key = { hdr.ethernet.dstAddr: exact;
 				hdr.ipv4.srcAddr: exact; 
@@ -536,24 +539,16 @@ control MyEgress(inout headers hdr,
 				hdr.tcp.srcPort: exact; 
 				hdr.tcp.dstPort: exact;
 				hdr.dumpBlock.value0[31:0]: exact; 
-				hdr.dumpBlock.value1[31:0]: exact; 
-				hdr.dumpBlock.value2[31:0]: exact; 
-				hdr.dumpBlock.value3[31:0]: exact; 
-				hdr.dumpBlock.value4[31:0]: exact; 
+				//hdr.dumpBlock.value1[31:0]: exact; 
+				//hdr.dumpBlock.value2[31:0]: exact; 
+				//hdr.dumpBlock.value3[31:0]: exact; 
+				//hdr.dumpBlock.value4[31:0]: exact; 
+				standard_metadata.egress_spec: exact;
 		}
 		actions = { NoAction ; }
 		default_action = NoAction();
 	}
-
-	action send_back(){
-		bit<48> tmp;
-		tmp=hdr.ethernet.dstAddr;
-		hdr.ethernet.dstAddr = hdr.ethernet.srcAddr;
-		hdr.ethernet.srcAddr = tmp;
-		standard_metadata.egress_spec = standard_metadata.ingress_port;
-	}
     apply {
-		send_back();
 		dbug_table.apply();	
 	}
 }
@@ -563,23 +558,7 @@ control MyEgress(inout headers hdr,
 *************************************************************************/
 
 control MyComputeChecksum(inout headers  hdr, inout customMetadata_t meta) {
-     apply {
-	update_checksum(
-	    hdr.ipv4.isValid(),
-            { hdr.ipv4.version,
-	      hdr.ipv4.ihl,
-              hdr.ipv4.diffserv,
-              hdr.ipv4.totalLen,
-              hdr.ipv4.identification,
-              hdr.ipv4.flags,
-              hdr.ipv4.fragOffset,
-              hdr.ipv4.ttl,
-              hdr.ipv4.protocol,
-              hdr.ipv4.srcAddr,
-              hdr.ipv4.dstAddr },
-            hdr.ipv4.hdrChecksum,
-            HashAlgorithm.csum16);
-    }
+     apply { }
 }
 
 /*************************************************************************
@@ -589,6 +568,7 @@ control MyComputeChecksum(inout headers  hdr, inout customMetadata_t meta) {
 control MyDeparser(packet_out packet, in headers hdr){ 
     apply {
         packet.emit(hdr.ethernet);
+		packet.emit(hdr.p4dump);
         packet.emit(hdr.ipv4);
 	//We dump the portblock field if returnFlag was set
 		packet.emit(hdr.dumpBlock);

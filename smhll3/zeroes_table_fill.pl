@@ -5,6 +5,8 @@ use warnings;
 ##### BITWIDTH PARAMETER HERE #####
 my $N=12;
 
+# Script to fill the zeroes lpm match table
+
 
 open (my $table_out, ">", "./tables/zeroees_table_$N".".txt") or die "Can't open output file: $!";
 print $table_out "// This table is meant to match how many zeroes are in a remnant of length $N \n";

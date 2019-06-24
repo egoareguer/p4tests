@@ -6,16 +6,18 @@ header p4dump_t {
 	bit<8>	P4DUMP_VER;
 	bit<32>	code;
 	bit<32> port;
+	bit<32> sequence_code;
+	bit<32> separator;
 }
 // dumpBlock header definition.
 // We use 256 bits blocks as that's the max bit shift size in v1model
 header dumpBlock_t {
-	bit<256> value0;
-	bit<256> value1;
+	bit<192> value0;
+/*	bit<256> value1;
 	bit<256> value2;
 	bit<256> value3;
 	bit<256> value4;
-	bit<256> value5;
+	bit<256> value5; */
 }
 
 // Standard fare ethernet, ipv4, tcp header definition

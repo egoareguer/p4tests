@@ -38,8 +38,8 @@ def calc_estimate(m,zeroes):
 	s=0
 	for i in range(m):
 		s=s+2**(-(zeroes[i])) 
-	res=alpha*m*m/sum
-	print("sum:",sum, "m:",m)
+	res=alpha*m*m/s
+	print("res", res, "sum:",s, "m:",m, "alpha",alpha)
 	return(res,alpha)
 
 def calc_blocks(f,m,tab):
@@ -56,3 +56,5 @@ def calc_blocks(f,m,tab):
 	print(res_list)
 
 #calc_blocks(31,32,srcIP_masterReg)
+l=[8, 8, 8, 7, 12, 7, 9, 5, 7, 7, 8, 6, 8, 5, 5, 7, 8, 6, 10, 9, 8, 8, 6, 12, 6, 11, 5, 5, 6, 5, 5, 11]
+calc_estimate(32,l)

@@ -6,7 +6,7 @@ import random
 import struct
 import re
 
-from scapy.all import sendp, send, get_if_list, get_if_hwaddr, sr, sr1, srp1
+from scapy.all import sendp, send, get_if_list, get_if_hwaddr, sr, sr1, srp1, srp, sniff
 from scapy.all import Packet, bind_layers
 from scapy.all import StrFixedLenField, XByteField, IntField
 from scapy.all import Ether, IP, UDP, TCP
@@ -22,17 +22,19 @@ class P4dump(Packet):
                     StrFixedLenField("Dump", "D", length=1),
                     XByteField("version", 0x01),
                     IntField("dump_code", 0),
-                    IntField("dump_port", 0)]
+                    IntField("dump_port", 0),
+                    IntField("sequence_code", 0xBBAAAABB),
+                    IntField("separator", 0xFFFFFFFF)]
 bind_layers(Ether, P4dump, type=0x1235)
 
 class P4dumpBlocks(Packet):
     name = "dumpBlock"
-    fields_desc = [ StrFixedLenField("block0","0",length=256),
-                    StrFixedLenField("block1","0",length=256),
-                    StrFixedLenField("block2","0",length=256),
-                    StrFixedLenField("block3","0",length=256),
-                    StrFixedLenField("block4","0",length=256),
-                    StrFixedLenField("block5","0",length=192)] #5*256+192 + P4dump + Ether -> 1498 bytes
+    fields_desc = [ StrFixedLenField("block","0",length=192)]
+#                    StrFixedLenField("block1","0",length=256),
+#                    StrFixedLenField("block2","0",length=256),
+#                    StrFixedLenField("block3","0",length=256),
+#                    StrFixedLenField("block4","0",length=256),
+#                    StrFixedLenField("block5","0",length=192)] #5*256+192 + P4dump + Ether -> 1498 bytes
 
  # a P4DUMP packet looks like this: 
  #
@@ -63,6 +65,7 @@ class P4dumpBlocks(Packet):
  # They match different HLL registers to read
  # Everythin after that is pre allocated empty space meant to be parsed, 
  # then filled by the switch.
+
 
 class NumParseError(Exception):
     pass
@@ -116,11 +119,24 @@ def main():
     iface = get_if()
     l=1048*"a"
     print "sending on interface %s" % (iface)
-    pkt = Ether(src=get_if_hwaddr(iface), dst='ff:ff:ff:ff:ff:ff', type=1235) / P4dump(dump_code=code, dump_port=dport) / l
+    pkt = Ether(src=get_if_hwaddr(iface), dst='ff:ff:ff:ff:ff:ff', type=1235) / P4dump(dump_code=code, dump_port=dport) / P4dumpBlocks() / ' ' 
     pkt.show()
-    pkt2 = Ether(src=get_if_hwaddr(iface), dst='ff:ff:ff:ff:ff:ff', type=1235) / P4dump(dump_code=code, dump_port=dport) / P4dumpBlocks()
-    pkt2.show()
-    srp1(pkt2, iface=iface, verbose=False)
-
+    resp,noresp = srp(pkt, iface=iface, timeout=0.2, verbose=True)
+    if resp:
+        resp.show2()
+        p4d=resp[P4dump]
+        p4db=resp[P4dumpBlocks]
+        if p4d:
+            p4d.show2()
+        else:
+            print "no P4dump layer block in answer"
+        if p4db:
+            p4db.show2()
+        else:
+            print "no P4dumpBlocks layer block in answer"
+    else:
+        print "No response"
+        
+    # pkt2 = Ether(src=get_if_hwaddr(iface), dst="ff:ff:ff:ff:ff:ff", type=1235) / IP(dst='10.0.2.2', src='10.0.1.1') /P4dump(dump_code=code, dump_port=dport) / P4dumpBlocks()
 if __name__ == '__main__':
     main()
