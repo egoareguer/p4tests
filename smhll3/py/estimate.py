@@ -2,6 +2,7 @@
 import os
 import scipy.integrate as integrate
 import scipy.special as special
+from ast import literal_eval
 from numpy import log, inf, inf
 
 #Reminder: With m substreams,
@@ -27,7 +28,7 @@ def calc_alpha(m): #Single call, can be substituted on compilation to insert alp
 		def integrand(u,m):
 			return  ( log ((2+u)/(1+u))/ log(2) )**m 
 		integrale = integrate.quad(integrand, 0, +inf, args=(m))
-		print("alpha:", 1/(m*integrale[0]))
+# print("alpha:", 1/(m*integrale[0]))
 		return(1/(m*integrale[0]))
 
 def calc_estimate(m,zeroes):
@@ -39,7 +40,7 @@ def calc_estimate(m,zeroes):
 	for i in range(m):
 		s=s+2**(-(zeroes[i])) 
 	res=alpha*m*m/s
-	print("res", res, "sum:",s, "m:",m, "alpha",alpha)
+# print("res", res, "sum:",s, "m:",m, "alpha",alpha)
 	return(res,alpha)
 
 def calc_blocks(f,m,tab):
@@ -55,6 +56,31 @@ def calc_blocks(f,m,tab):
 		res_list.append(res)
 	print(res_list)
 
-#calc_blocks(31,32,srcIP_masterReg)
-l=[8, 8, 8, 7, 12, 7, 9, 5, 7, 7, 8, 6, 8, 5, 5, 7, 8, 6, 10, 9, 8, 8, 6, 12, 6, 11, 5, 5, 6, 5, 5, 11]
-calc_estimate(32,l)
+
+rfilename="../records/regentries_32.txt"
+rfile=open(rfilename,'r')
+line=rfile.readline()[:-1] # Minus the \n
+count=0
+sIpL,dIpL,sPoL,pLenL=["SrcIP List"],["DstIP List",],["SrcPort List"],["PktLen List"]
+while (line):
+	res,a=calc_estimate(21,literal_eval(line))
+	det=count%4
+	if (det==0):
+		sIpL.append(res)
+	elif (det==1):
+		dIpL.append(res)
+	elif (det==2):
+		sPoL.append(res)
+	else:
+		pLenL.append(res)
+	line=rfile.readline()[:-1]
+	count+=1
+rfile.close()
+print(sIpL)
+print(dIpL)
+print(sPoL)
+print(pLenL)
+
+
+#l=[8, 8, 8, 7, 12, 7, 9, 5, 7, 7, 8, 6, 8, 5, 5, 7, 8, 6, 10, 9, 8, 8, 6, 12, 6, 11, 5, 5, 6, 5, 5, 11]
+#calc_estimate(32,l)

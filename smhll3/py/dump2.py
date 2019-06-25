@@ -29,7 +29,8 @@ bind_layers(Ether, P4dump, type=0x1235)
 
 class P4dumpBlocks(Packet):
     name = "dumpBlock"
-    fields_desc = [ StrFixedLenField("block","0",length=192)]
+    fields_desc = [ StrFixedLenField("block","0",length=192)] # length in bytes. Not bits
+    # 192 bytes is enough for 256 short bytes.
 #                    StrFixedLenField("block1","0",length=256),
 #                    StrFixedLenField("block2","0",length=256),
 #                    StrFixedLenField("block3","0",length=256),

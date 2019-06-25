@@ -31,7 +31,7 @@ if [[ -n $1 ]] ; then
 else
 	num_pkt=50
 fi
-for i in {1..50} 
+for i in {1..30} 
 do 
 	signal $num_pkt
 	dump 
@@ -49,6 +49,7 @@ filename="payloads_$num_pkt.txt"
 # echo 	 "# Pace is $num_pkt large." > $filename
 tshark -r s1-eth1_in.pcap -T fields -e data | cut -df -f9 >> $filename 
 chown p4 $filename ; chgrp p4 $filename
-byte_count=$(grep -m 1 NUM_HLL_REG ../src/constants.p4 | cut -d' ' -f3) 
-cut -c 1-$byte_count $filename > "cropped_payloads_$byte_count.txt"
+dbyte_count=$(grep -m 1 NUM_HLL_REG ../src/constants.p4 | cut -d' ' -f3) 
+dbyte_count=96
+cut -c 1-$dbyte_count $filename > "cropped_payloads_$dbyte_count.txt"
 cd ..
