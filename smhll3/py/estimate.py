@@ -56,14 +56,67 @@ def calc_blocks(f,m,tab):
 		res_list.append(res)
 	print(res_list)
 
+def file_est(n_ent):
+        # int n_ent is how many entries there are (NUM_HLL_REGISTERS)
+        
+	# Assumes all four lists are present
 
-rfilename="../records/regentries_32.txt"
+        # First, read the file and decode it, saving the res in four lists
+
+        pace=60
+        
+	str_n_ent=str(n_ent)
+	filename="../records/regentries_"+str_n_ent+".txt"
+	rfile=open(filename,'r')
+	line=rfile.readline()[:-1] # Minus the final \n character
+	count=0
+        sIpL,dIpL,sPoL,pLenL=["sip"],["dip"],["spo"],["plen"]
+	while (line):
+		es,a=calc_estimate(64,literal_eval(line))
+		det=count%4
+                amount=((count-det)/4+1)*pace
+                delta=abs(amount-es)
+                
+                rel_e=delta/amount
+                if (det==0):
+			sIpL.append(es)
+                        sIpL.append(rel_e)
+                        print(delta)
+                        print(amount)
+                elif (det==1):
+			dIpL.append(es)
+                        dIpL.append(rel_e)
+		elif (det==2):
+			sPoL.append(es)
+                        sPoL.append(rel_e)
+		else:
+			pLenL.append(es)
+		line=rfile.readline()[:-1]
+		count+=1
+	rfile.close()
+        return(sIpL,dIpL,sPoL,pLenL)
+
+def write_ests(l,n_ent):
+        # l the list to write, with:
+        # l[0] should be a comment
+        # Then, odd indexes should be the estimate
+        # while even indexes should be the error
+
+        dfilename="../records/est_"+str(n_ent)+'_'+l[0]+'.txt'
+	wfile=open(dfilename,'w')
+        for i in range((len(l)-1)/2):
+                wfile.write('Estimate: '+str(l[2*i+1])+', Relative error:')
+                wfile.write(str(l[2*i+2])+'\n')
+        wfile.close()
+
+"""
+rfilename="../records/regentries_64.txt"
 rfile=open(rfilename,'r')
 line=rfile.readline()[:-1] # Minus the \n
 count=0
 sIpL,dIpL,sPoL,pLenL=["SrcIP List"],["DstIP List",],["SrcPort List"],["PktLen List"]
 while (line):
-	res,a=calc_estimate(21,literal_eval(line))
+	res,a=calc_estimate(64,literal_eval(line))
 	det=count%4
 	if (det==0):
 		sIpL.append(res)
@@ -76,11 +129,15 @@ while (line):
 	line=rfile.readline()[:-1]
 	count+=1
 rfile.close()
+
 print(sIpL)
 print(dIpL)
 print(sPoL)
 print(pLenL)
-
+"""
+n_entries=64
+l1,l2,l3,l4=file_est(n_entries)
+write_ests(l1,n_entries)
 
 #l=[8, 8, 8, 7, 12, 7, 9, 5, 7, 7, 8, 6, 8, 5, 5, 7, 8, 6, 10, 9, 8, 8, 6, 12, 6, 11, 5, 5, 6, 5, 5, 11]
 #calc_estimate(32,l)
