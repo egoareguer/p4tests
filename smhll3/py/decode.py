@@ -1,4 +1,5 @@
 #!/usr/bin/python
+import sys
 
 hscale=16
 bscale=2
@@ -71,10 +72,12 @@ def decode_blocks(s,n):
 	for i in range(len(s)/n):
 		decode(s)
 
-sfilename="../records/cropped_payloads_64.txt"
+sfilename="../records/"+sys.argv[1]
+#sfilename="../records/cropped_payloads_96._75.txt"
 pfile=open(sfilename,'r')
 
-dfilename="../records/regentries_64.txt"
+dfilename="../records/regentries_"+sys.argv[2]+".txt"
+#dfilename="../records/regentries_75.txt"
 wfile=open(dfilename,'w')
 
 line=pfile.readline()[:-1]
