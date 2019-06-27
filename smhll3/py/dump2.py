@@ -109,7 +109,6 @@ def set_ips():
     return(ds,dd)
 
 def main():
-    print(len(sys.argv))
     if len(sys.argv)<3:
         print 'pass 2 arguments: <dPort> <Feature code in 2314-2320>'
 	exit(1)
@@ -119,10 +118,10 @@ def main():
         ds,dd=set_ips()
     iface = get_if()
     l=1048*"a"
-    print "sending on interface %s" % (iface)
+    print "sending on interface %s for code %d" % (iface, code)
     pkt = Ether(src=get_if_hwaddr(iface), dst='ff:ff:ff:ff:ff:ff', type=1235) / P4dump(dump_code=code, dump_port=dport) / P4dumpBlocks() / ' ' 
-    pkt.show()
-    resp,noresp = srp(pkt, iface=iface, timeout=0.2, verbose=True)
+#pkt.show()
+    resp,noresp = srp(pkt, iface=iface, timeout=0.2, verbose=False)
     if resp:
         resp.show2()
         p4d=resp[P4dump]

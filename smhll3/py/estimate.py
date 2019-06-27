@@ -1,5 +1,6 @@
 #!/usr/bin/python
 import os
+import sys
 import scipy.integrate as integrate
 import scipy.special as special
 from ast import literal_eval
@@ -41,7 +42,7 @@ def calc_estimate(m,zeroes):
 	for i in range(m):
 		s=s+2**(-(zeroes[i])) 
 	res=alpha*m*m/s
-# print("res", res, "sum:",s, "m:",m, "alpha",alpha)
+#	print("res", res, "sum:",s, "m:",m, "alpha",alpha)
 	return(res,alpha)
 
 def calc_blocks(f,m,tab):
@@ -57,31 +58,31 @@ def calc_blocks(f,m,tab):
 		res_list.append(res)
 	print(res_list)
 
-def file_est(n_ent):
+def file_est(n_ent,filename, step):
         # int n_ent is how many entries there are (NUM_HLL_REGISTERS)
         
 	# Assumes all four lists are present
 
         # First, read the file and decode it, saving the res in four lists
 
-        pace=75
+        pace=step
         
 	str_n_ent=str(n_ent)
-	filename="../records/regentries_75.txt"
+#filename="../records/regentries_75.txt"
 	rfile=open(filename,'r')
 	line=rfile.readline()[:-1] # Minus the final \n character
 	count=0
         sIpL,dIpL,sPoL,pLenL=["sip"],["dip"],["spo"],["plen"]
         legend="Estimate","True value","Relative Error"
 	while (line):
-		es,a=calc_estimate(64,literal_eval(line))
+		es,a=calc_estimate(n_ent,literal_eval(line))
 		det=count%4
                 amount=((count-det)/4+1)*pace
                 delta=abs(amount-es)
                 
                 rel_e=delta/amount
                 values=es, amount, rel_e
-                print (es)
+		print (values)
                 if (det==0):
 			sIpL.append(values)
                 elif (det==1):
@@ -95,13 +96,13 @@ def file_est(n_ent):
 	rfile.close()
         return(sIpL,dIpL,sPoL,pLenL)
 
-def write_ests(l,n_ent):
+def write_ests(l,n_ent,step):
         # l the list to write, with:
         # l[0] should be the key
         # Then, odd indexes should be the estimate
         # while even indexes should be the error
 
-        dfilename="../records/est_"+str(n_ent)+'_'+l[0]+'_step=75.txt'
+        dfilename="../records/est_"+str(n_ent)+'_'+l[0]+'_step='+step+'.txt'
 	wfile=open(dfilename,'w')
         for i in range((len(l)-1)):
                 wfile.write('Estimate: % 10.3f' %l[i+1][0])
@@ -110,7 +111,7 @@ def write_ests(l,n_ent):
         wfile.close()
 
 
-def plot (l1,l2,l3):
+def plot (l1,l2,l3,n_ent):
         # li[1:] is the list of register entries
         # li[0] is its key for the legend
         # n_ent is how many entries there are.
@@ -120,24 +121,32 @@ def plot (l1,l2,l3):
         refl=[i[1] for i in l1[1:]]
         under_ref=[i*0.9 for i in refl]
         over_ref =[i*1.1 for i in refl]
-        n=len(l1)-1
         es1=[i[0] for i in l1[1:]]
         es2=[i[0] for i in l2[1:]]
         es3=[i[0] for i in l3[1:]]
         step=refl[0]
         plt.plot(refl, refl, 'r--', refl, under_ref, 'b--', refl, over_ref, 'g--')
-        plt.plot(refl, es1, 'bs', refl, es2, 'gs', refl, es3, 'rs')
+        plt.plot(refl, es1, 'bd', refl, es2, 'gd', refl, es3, 'rd')
+	plt.legend(['Sent pkts', 'Sent pkt -10%', 'Sent pkts +10%','Src IPs', 'Dst IPs', 'Src Ports'])
+        plt.title('Cardinality estimates, n = '+str(n_ent))
         plt.show()
 
         
-n_entries=64
-l1,l2,l3,l4=file_est(n_entries)
-write_ests(l1,n_entries)
-write_ests(l2,n_entries)
-write_ests(l3,n_entries)
-write_ests(l4,n_entries)
+#n_entries=256
+#step="100"
 
-plot(l1,l2,l3)
+n_entries	= int(sys.argv[1])
+step 		= sys.argv[2]
+filename    = "../records/regentries_"+step+".txt"
+l1,l2,l3,l4=file_est(n_entries, filename, int(step))
+write_ests(l1,n_entries,step)
+write_ests(l2,n_entries,step)
+write_ests(l3,n_entries,step)
+write_ests(l4,n_entries,step)
 
-#l=[8, 8, 8, 7, 12, 7, 9, 5, 7, 7, 8, 6, 8, 5, 5, 7, 8, 6, 10, 9, 8, 8, 6, 12, 6, 11, 5, 5, 6, 5, 5, 11]
-#calc_estimate(32,l)
+plot(l1,l2,l3,n_entries)
+"""
+
+l=[2, 3, 3, 3, 3, 1, 2, 1, 1, 5, 4, 2, 2, 3, 4, 3, 5, 5, 5, 3, 1, 4, 4, 6, 2, 1, 2, 5, 2, 2, 4, 3, 5, 6, 3, 2, 3, 2, 3, 1, 3, 7, 6, 3, 2, 2, 3, 5, 5, 4, 1, 2, 2, 3, 3, 1, 1, 3, 4, 1, 2, 4, 5, 2, 4, 3, 4, 2, 3, 1, 1, 3, 6, 4, 4, 1, 6, 2, 4, 7, 4, 5, 3, 1, 3, 1, 4, 3, 4, 2, 1, 3, 6, 3, 6, 2, 1, 2, 1, 3, 3, 2, 3, 2, 4, 3, 3, 4, 3, 1, 3, 5, 6, 4, 4, 2, 2, 6, 4, 2, 4, 3, 9, 6, 1, 2, 3, 1, 5, 1, 1, 1, 9, 3, 1, 3, 3, 3, 4, 5, 6, 4, 2, 5, 3, 3, 6, 1, 3, 4, 4, 2, 4, 1, 3, 2, 0, 2, 7, 5, 3, 3, 1, 2, 0, 2, 4, 7, 1, 2, 2, 2, 5, 3, 4, 6, 4, 3, 6, 3, 1, 1, 5, 3, 2, 5, 4, 4, 4, 4, 3, 4, 3, 2, 2, 3, 1, 3, 1, 3, 6, 3, 2, 2, 3, 2, 2, 5, 5, 3, 1, 4, 1, 1, 1, 4, 3, 5, 4, 7, 4, 3, 2, 4, 1, 4, 4, 3, 3, 7, 5, 5, 2, 2, 5, 4, 2, 7, 3, 4, 4, 2, 3, 6, 7, 4, 3, 11, 4, 4, 3, 6, 3, 3, 7, 0, 8]
+calc_estimate(256,l)
+"""

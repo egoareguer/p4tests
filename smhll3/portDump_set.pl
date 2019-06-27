@@ -9,7 +9,7 @@
 use strict;
 use warnings;
 
-my $N=64;
+my $N=256;
 my $index=0;
 my $end=5;
 my @prefixes=("srcIP","dstIP","srcPort","pktLen");

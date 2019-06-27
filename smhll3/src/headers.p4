@@ -11,13 +11,46 @@ header p4dump_t {
 }
 // dumpBlock header definition.
 // We use 256 bits blocks as that's the max bit shift size in v1model
+
+//Cutoff points: 
+// 32 entries <-> 1 block
+// So: 32:1		64:2	128:4	256:8 	512:16	  1024:32 
+// 1024 is the limit to fit in 
+
 header dumpBlock_t {
 	bit<192> value0;
 	bit<192> value1;
-	//bit<192> value2;
-	//bit<256> value3;
-	//bit<256> value4;
-	//bit<256> value5; 
+	bit<192> value2;
+	bit<192> value3;
+	bit<192> value4;
+	bit<192> value5;
+	bit<192> value6;
+	bit<192> value7;
+/*	bit<192> value8;
+	bit<192> value9;
+	bit<192> value10;
+	bit<192> value11;
+	bit<192> value12;
+	bit<192> value13;
+	bit<192> value14;
+	bit<192> value15;
+	bit<192> value16;
+	bit<192> value17;
+	bit<192> value18;
+	bit<192> value19;
+	bit<192> value20;
+	bit<192> value21;
+	bit<192> value22;
+	bit<192> value23;
+	bit<192> value24;
+	bit<192> value25;
+	bit<192> value26;
+	bit<192> value27;
+	bit<192> value28;
+	bit<192> value29;
+	bit<192> value30;
+	bit<192> value31;
+	*/
 }
 
 // Standard fare ethernet, ipv4, tcp header definition
