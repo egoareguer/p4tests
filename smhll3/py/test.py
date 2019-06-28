@@ -6,11 +6,13 @@ import random
 import struct
 import time
 
-# The first arg is to specifyhow many ports we test
-
 from scapy.all import sendp, send, get_if_list, get_if_hwaddr
 from scapy.all import Packet
 from scapy.all import Ether, IP, UDP, TCP
+
+# Normal use: ./test.py N -> Send N packets with sip, dip, sport randomized to port 0 
+# If a second argument is specified, it will be used as destination port instead
+# !!! WARNING !!! If said port is out of bound for the switch, may cause a crash
 
 def get_if():
     ifs=get_if_list()
@@ -25,17 +27,14 @@ def get_if():
     return iface
 
 def set_sip(N):
-#    return (str(N/2**24)+'.'+str(N%2**24/2**16)+'.'+str(N%2**16/256)+'.'+str(N%256))
     b1=random.randint(1,255)
     b2=random.randint(1,255)
     b3=random.randint(1,255)
     b4=random.randint(1,255)
     res=str(b1)+'.'+str(b2)+'.'+str(b3)+'.'+str(b4)
     return(res)    
-#    return(str(random.randint(1,254))+'.'+str(random.randint(1,254))+'.'+str(random.randint(1,254))+'.'+str(random.randint(1,254)))
     
 def set_dip(N):
-#    return (str(N%256)+'.'+str(N%2**16/256)+'.'+str(N%2**24/2**16)+'.'+str(N/2**24))
     b1=random.randint(1,255)
     b2=random.randint(1,255)
     b3=random.randint(1,255)
@@ -44,7 +43,6 @@ def set_dip(N):
     return(res)
     
 def set_sport(N):
-#    return(str((000+N)%64999))
     return(random.randint(1,64999))
     
 def main():
@@ -52,12 +50,16 @@ def main():
     iface = get_if()
     keys=[]
     N_ENTRIES=32
+    if (len(sys.argv)>2):
+        dst_port=sys.argv[2]
+    else:
+        dst_port=0
     for i in range (N_PKTS):
 	sport=set_sport(i)
 	sip=set_sip(i)
         dip=set_dip(i)
 	lenPadding=random.randint(1,100)*"pppp"
-	keys.append((sport,0,sip,dip,lenPadding))
+	keys.append((sport,dst_port,sip,dip,lenPadding))
         
     print(str(len(keys))+" packets to send")
     clock=time.time()

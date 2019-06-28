@@ -2,7 +2,7 @@
 
 #  !!! Invoke this script from h1 !!!
 
-# Spends batches of a fixed $step amount of packets with test1.py
+# Spends batches of a fixed $step amount of packets with test.py
 # After each batch, asks the switch to dump all four registers
 # Once done sending, moves the pcap with the dumps into recorders
 # Strip them down to the relevant hexdump payloads 
@@ -29,15 +29,15 @@ cd ./py/
 function signal() # 
 {
 	n=$1
-	python test1.py $n
+	python test.py $n
 }
 
 function dump()
 {
-	python dump2.py 0 2314
-	python dump2.py 0 2315
-	python dump2.py 0 2316
-	python dump2.py 0 2317
+	python dump.py 0 2314
+	python dump.py 0 2315
+	python dump.py 0 2316
+	python dump.py 0 2317
 }
 
 #Assignments 
